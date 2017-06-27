@@ -1,0 +1,20 @@
+{
+  "name": "bower",
+  "description": "bower",
+  "main": "bower",
+  "authors": [
+    "bower"
+  ],
+  "license": "bower",
+  "keywords": [
+    "bower"
+  ],
+  "homepage": "bower",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}
