@@ -1,0 +1,470 @@
+Shortcuts simplify My Drive … 
+In the coming weeks, items in more than one folder will be replaced by shortcuts. Access to files and folders won't change.Learn more
+PojoTest.java
+Who has access
+Not shared
+System properties
+Type
+Java
+Size
+17 KB
+Storage used
+17 KB
+Location
+web
+Owner
+me
+Modified
+Mar 5, 2021 by me
+Opened
+9:53 PM by me
+Created
+Jun 22, 2021 with Google Drive Web
+Add a description
+Viewers can download
+package com.wk.gbs.dc.web;
+
+import java.io.ByteArrayOutputStream;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+import java.util.function.Function;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.meanbean.test.BeanTestException;
+import org.meanbean.test.BeanTester;
+import org.meanbean.test.Configuration;
+import org.meanbean.test.ConfigurationBuilder;
+
+import com.aspose.imaging.internal.Exceptions.IO.IOException;
+import com.google.common.reflect.ClassPath;
+import com.google.common.util.concurrent.Service.State;
+import com.openpojo.reflection.PojoClass;
+import com.openpojo.reflection.filters.FilterPackageInfo;
+import com.openpojo.reflection.impl.PojoClassFactory;
+import com.openpojo.validation.affirm.Affirm;
+import com.wk.gbs.dc.model.DocumentDetail;
+import com.wk.gbs.dc.model.DocumentSummary;
+import com.wk.gbs.dc.model.EmaiLogs;
+import com.wk.gbs.dc.model.EmailStatus;
+import com.wk.gbs.dc.model.Order;
+import com.wk.gbs.dc.model.dto.DocumentOpenDTO;
+import com.wk.gbs.dc.model.dto.DocumentPageData;
+import com.wk.gbs.dc.model.dto.SingleThumbnailResponse;
+import com.wk.gbs.dc.model.dto.SplitPageResponse;
+
+import javassist.CannotCompileException;
+import javassist.ClassPool;
+import javassist.CtClass;
+import javassist.CtConstructor;
+import javassist.CtMethod;
+import javassist.CtNewConstructor;
+import javassist.CtNewMethod;
+import javassist.NotFoundException;
+import junit.framework.Assert;
+import lombok.SneakyThrows;
+import nl.jqno.equalsverifier.EqualsVerifier;
+import nl.jqno.equalsverifier.Warning;
+
+public class PojoTest {
+
+	// Configured for expectation, so we know when a class gets added or removed.
+	private static final int EXPECTED_CLASS_COUNT = 29;
+
+	// The package to test
+	private static final String POJO_PACKAGE = "com.wk.gbs.dc.model";
+
+	private BeanTester beanTester;
+
+	@Before
+	public void before() {
+		beanTester = new BeanTester();
+	}
+//	@Test
+//	public void ensureExpectedPojoCount() {
+//		List<PojoClass> pojoClasses = PojoClassFactory.getPojoClasses(POJO_PACKAGE, new FilterPackageInfo());
+//		Affirm.affirmEquals("Classes added / removed?", EXPECTED_CLASS_COUNT, pojoClasses.size());
+//	}
+
+	/*
+	 * @Test public void testPojoStructureAndBehavior() { Validator validator =
+	 * ValidatorBuilder.create() // Add Rules to validate structure for POJO_PACKAGE
+	 * // See com.openpojo.validation.rule.impl for more ... .with(new
+	 * GetterMustExistRule()) .with(new SetterMustExistRule()) // .with(new
+	 * BusinessIdentityTester()) // // Add Testers to validate behaviour for
+	 * POJO_PACKAGE // See com.openpojo.validation.test.impl for more ... .with(new
+	 * SetterTester()).with(new GetterTester()) .build();
+	 * 
+	 * validator.validate(POJO_PACKAGE, new FilterPackageInfo()); }
+	 */
+
+	@Test
+	public void testToString() {
+
+		List<PojoClass> pojoClasses = PojoClassFactory.getPojoClasses(POJO_PACKAGE, new FilterPackageInfo());
+
+		Configuration config = new ConfigurationBuilder().ignoreProperty("content").ignoreProperty("data")
+				.ignoreProperty("file").build();
+
+		for (PojoClass pclazz : pojoClasses) {
+
+			try {
+				Class<?> info = pclazz.getClazz().getClassLoader().loadClass(pclazz.getClazz().getName());
+				int modifiers = info.getModifiers();
+				if (Modifier.isAbstract(modifiers) || Modifier.isInterface(modifiers) || info.equals(this.getClass())
+						|| info.isEnum()) {
+					continue;
+				}
+
+				beanTester.testBean(pclazz.getClazz().getClassLoader().loadClass(pclazz.getClazz().getName()), config);
+			} catch (IllegalArgumentException | BeanTestException | ClassNotFoundException | AssertionError e) {
+				// TODO Auto-generated catch block
+				//e.printStackTrace();
+			}
+
+		}
+	}
+
+	@Test
+	public void testToString1() {
+
+		List<PojoClass> pojoClasses = PojoClassFactory.getPojoClasses("com.wk.gbs.dc.model.dto",
+				new FilterPackageInfo());
+
+		Configuration config = new ConfigurationBuilder().ignoreProperty("content").ignoreProperty("data")
+				.ignoreProperty("file").build();
+
+		for (PojoClass pclazz : pojoClasses) {
+
+			try {
+				Class<?> info = pclazz.getClazz().getClassLoader().loadClass(pclazz.getClazz().getName());
+				int modifiers = info.getModifiers();
+				if (Modifier.isAbstract(modifiers) || Modifier.isInterface(modifiers) || info.equals(this.getClass())
+						|| info.isEnum()) {
+					continue;
+				}
+
+				beanTester.testBean(pclazz.getClazz().getClassLoader().loadClass(pclazz.getClazz().getName()), config);
+			} catch (IllegalArgumentException | BeanTestException | ClassNotFoundException | AssertionError e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+
+		}
+	}
+
+	/*
+	 * @Test public void testSetter_setsProperly() throws NoSuchFieldException,
+	 * IllegalAccessException { // given
+	 * 
+	 * List<DocumentDetail> pojoList = new ArrayList<>(); List<DocumentDetail>
+	 * pojoList1 = new ArrayList<>();
+	 * 
+	 * DocumentDetail pojo = new DocumentDetail();
+	 * 
+	 * for (int i = 1; i <= 2; i++) { pojo.setOrderid("asdas");
+	 * pojo.setOrderitemid(String.valueOf(i));
+	 * 
+	 * // documentSummary.setSource(String.valueOf(i));
+	 * pojo.setDoccollection(String.valueOf(i));
+	 * pojo.setDocumenttype(String.valueOf(i)); //
+	 * documentSummary.setCtaNotes(String.valueOf(i));
+	 * pojo.setIscached(String.valueOf(i));
+	 * 
+	 * pojo.setDocID(String.valueOf(i)); //
+	 * documentSummary.setDocumentName(String.valueOf(i));
+	 * pojo.setDocurl(String.valueOf(i)); pojo.setNativefiletype(String.valueOf(i));
+	 * pojo.setFile_extension(String.valueOf(i));
+	 * 
+	 * pojo.setDocumentsource(String.valueOf(i));
+	 * pojo.setPublished(String.valueOf(i)); pojo.setCreatedON(String.valueOf(i));
+	 * pojo.setCreatedBY(String.valueOf(i)); pojo.setCreatedbyid(String.valueOf(i));
+	 * 
+	 * pojo.setLastmodifiedon(String.valueOf(i));
+	 * pojo.setLastModifiedBY(String.valueOf(i));
+	 * pojo.setLastmodifiedbyid(String.valueOf(i));
+	 * pojo.setOrderplacerid(String.valueOf(i));
+	 * 
+	 * pojo.setLineNumber(String.valueOf(i).trim());
+	 * pojo.setFilterableLineNumber(pojo.getLineNumber());
+	 * 
+	 * pojo.setItemlinenumber(String.valueOf(i));
+	 * pojo.setRelateddocid(String.valueOf(i)); pojo.setComments(String.valueOf(i));
+	 * pojo.setCommentsToCT(String.valueOf(i));
+	 * 
+	 * pojo.setEntity(String.valueOf(i)); pojo.setJurisdiction(String.valueOf(i));
+	 * pojo.setJurisdiction(pojo.getJurisdiction().trim());
+	 * pojo.setItemDescription(String.valueOf(i));
+	 * 
+	 * // documentSummary.setSource(String.valueOf(i));
+	 * pojo.setNoofpages(String.valueOf(i)); //
+	 * documentSummary.setCategory(String.valueOf(i));
+	 * 
+	 * pojo.setCategorycode(String.valueOf(i));
+	 * pojo.setSupportingdocidentifier(String.valueOf(i));
+	 * pojo.setMultidocindicator(String.valueOf(i));
+	 * pojo.setFilename(String.valueOf(i));
+	 * 
+	 * pojo.setFilesize(String.valueOf(i));
+	 * pojo.setUsernotestext(String.valueOf(i)); //
+	 * emailStatus.setLog(String.valueOf(i)); pojo.setEmail(String.valueOf(i));
+	 * pojo.setEmailTo(String.valueOf(i)); //
+	 * emailStatus.setSent(String.valueOf(i)); pojo.setSummary(new
+	 * DocumentSummary()); pojo.setEmailStatus(new EmailStatus());
+	 * pojo.setGeneratedOrderId(""); pojoList.add(pojo); pojoList1.add(pojo); }
+	 * 
+	 * for (int i = 1; i <= 2; i++) { pojo.getOrderid().toString();
+	 * pojo.getOrderitemid().toString();
+	 * 
+	 * // documentSummary.getSource().toString();
+	 * pojo.getDoccollection().toString(); pojo.getDocumenttype().toString(); //
+	 * documentSummary.getCtaNotes().toString(); pojo.getIscached().toString();
+	 * 
+	 * pojo.getDocID().toString(); // documentSummary.getDocumentName().toString();
+	 * pojo.getDocurl().toString(); pojo.getNativefiletype().toString();
+	 * pojo.getFile_extension().toString();
+	 * 
+	 * pojo.getDocumentsource().toString(); pojo.getPublished().toString();
+	 * pojo.getCreatedON().toString(); pojo.getCreatedBY().toString();
+	 * pojo.getCreatedbyid().toString();
+	 * 
+	 * pojo.getLastmodifiedon().toString(); pojo.getLastModifiedBY().toString();
+	 * pojo.getLastmodifiedbyid().toString(); pojo.getOrderplacerid().toString();
+	 * 
+	 * pojo.getLineNumber().toString(); pojo.getFilterableLineNumber().toString();
+	 * 
+	 * pojo.getItemlinenumber().toString(); pojo.getRelateddocid().toString();
+	 * pojo.getComments().toString(); pojo.getCommentsToCT().toString();
+	 * 
+	 * pojo.getEntity().toString(); pojo.getJurisdiction().toString();
+	 * pojo.getJurisdiction().toString(); pojo.getItemDescription().toString();
+	 * 
+	 * // documentSummary.getSource().toString(); pojo.getNoofpages().toString(); //
+	 * documentSummary.getCategory().toString();
+	 * 
+	 * pojo.getCategorycode().toString();
+	 * pojo.getSupportingdocidentifier().toString();
+	 * pojo.getMultidocindicator().toString(); pojo.getFilename().toString();
+	 * 
+	 * pojo.getFilesize().toString(); pojo.getUsernotestext().toString(); //
+	 * emailStatus.getLog().toString(); pojo.getEmail().toString();
+	 * pojo.getEmailTo().toString(); // emailStatus.getSent().toString();
+	 * pojo.getSummary().toString(); pojo.getEmailStatus().toString();
+	 * pojo.getGeneratedOrderId().toString(); }
+	 * 
+	 * for (int i = 1; i <= 2; i++) { pojo.getOrderid().equals("");
+	 * pojo.getOrderitemid().toString();
+	 * 
+	 * // documentSummary.getSource().toString();
+	 * pojo.getDoccollection().toString(); pojo.getDocumenttype().toString(); //
+	 * documentSummary.getCtaNotes().toString(); pojo.getIscached().toString();
+	 * 
+	 * pojo.getDocID().toString(); // documentSummary.getDocumentName().toString();
+	 * pojo.getDocurl().toString(); pojo.getNativefiletype().toString();
+	 * pojo.getFile_extension().toString();
+	 * 
+	 * pojo.getDocumentsource().toString(); pojo.getPublished().toString();
+	 * pojo.getCreatedON().toString(); pojo.getCreatedBY().toString();
+	 * pojo.getCreatedbyid().toString();
+	 * 
+	 * pojo.getLastmodifiedon().toString(); pojo.getLastModifiedBY().toString();
+	 * pojo.getLastmodifiedbyid().toString(); pojo.getOrderplacerid().toString();
+	 * 
+	 * pojo.getLineNumber().toString(); pojo.getFilterableLineNumber().toString();
+	 * 
+	 * pojo.getItemlinenumber().toString(); pojo.getRelateddocid().toString();
+	 * pojo.getComments().toString(); pojo.getCommentsToCT().toString();
+	 * 
+	 * pojo.getEntity().toString(); pojo.getJurisdiction().toString();
+	 * pojo.getJurisdiction().toString(); pojo.getItemDescription().toString();
+	 * 
+	 * // documentSummary.getSource().toString(); pojo.getNoofpages().toString(); //
+	 * documentSummary.getCategory().toString();
+	 * 
+	 * pojo.getCategorycode().toString();
+	 * pojo.getSupportingdocidentifier().toString();
+	 * pojo.getMultidocindicator().toString(); pojo.getFilename().toString();
+	 * 
+	 * pojo.getFilesize().toString(); pojo.getUsernotestext().toString(); //
+	 * emailStatus.getLog().toString(); pojo.getEmail().toString();
+	 * pojo.getEmailTo().toString(); // emailStatus.getSent().toString();
+	 * pojo.getSummary().toString(); pojo.getEmailStatus().toString();
+	 * pojo.getGeneratedOrderId().toString(); }
+	 * 
+	 * pojoList.forEach(i -> { pojoList1.forEach(ii -> { ii.getLineNumberAsFloat();
+	 * ii.LineNumberComparator.compare(ii, i); ii.equals(i); ii.hashCode();
+	 * i.hashCode(); i.getOrderid().equals(""); i.getOrderitemid().equals("");
+	 * 
+	 * // documentSummary.getSource().equals(""); i.getDoccollection().equals("");
+	 * i.getDocumenttype().equals(""); // documentSummary.getCtaNotes().equals("");
+	 * i.getIscached().equals("");
+	 * 
+	 * i.getDocID().equals(""); // documentSummary.getDocumentName().equals("");
+	 * i.getDocurl().equals(""); i.getNativefiletype().equals("");
+	 * i.getFile_extension().equals("");
+	 * 
+	 * i.getDocumentsource().equals(""); i.getPublished().equals("");
+	 * i.getCreatedON().equals(""); i.getCreatedBY().equals("");
+	 * i.getCreatedbyid().equals("");
+	 * 
+	 * i.getLastmodifiedon().equals(""); i.getLastModifiedBY().equals("");
+	 * i.getLastmodifiedbyid().equals(""); i.getOrderplacerid().equals("");
+	 * 
+	 * i.getLineNumber().equals(""); i.getFilterableLineNumber().equals("");
+	 * 
+	 * i.getItemlinenumber().equals(""); i.getRelateddocid().equals("");
+	 * i.getComments().equals(""); i.getCommentsToCT().equals("");
+	 * 
+	 * i.getEntity().equals(""); i.getJurisdiction().equals("");
+	 * i.getJurisdiction().equals(""); i.getItemDescription().equals("");
+	 * 
+	 * // documentSummary.getSource().equals(""); i.getNoofpages().equals(""); //
+	 * documentSummary.getCategory().equals("");
+	 * 
+	 * i.getCategorycode().equals(""); i.getSupportingdocidentifier().equals("");
+	 * i.getMultidocindicator().equals(""); i.getFilename().equals("");
+	 * 
+	 * i.getFilesize().equals(""); i.getUsernotestext().equals(""); //
+	 * emailStatus.getLog().equals(""); i.getEmail().equals("");
+	 * i.getEmailTo().equals(""); // emailStatus.getSent().equals("");
+	 * i.getSummary().equals(""); i.getEmailStatus().equals("");
+	 * i.getGeneratedOrderId().equals(""); }); });
+	 * 
+	 * // assertEquals("Fields didn't match", field.get(pojo), "foo"); }
+	 */
+
+	@Test
+	public void tesatToString() {
+
+		List<PojoClass> pojoClasses = PojoClassFactory.getPojoClasses(POJO_PACKAGE, new FilterPackageInfo());
+
+		Configuration config = new ConfigurationBuilder().ignoreProperty("content").ignoreProperty("data")
+				.ignoreProperty("file").build();
+
+		for (PojoClass pclazz : pojoClasses) {
+
+			try {
+				Class<?> info = DocumentDetail.class;// pclazz.getClazz().getClassLoader().loadClass(pclazz.getClazz().getName());
+				int modifiers = info.getModifiers();
+				if (Modifier.isAbstract(modifiers) || Modifier.isInterface(modifiers) || info.equals(this.getClass())
+						|| info.isEnum()) {
+					continue;
+				}
+
+				beanTester.testBean(pclazz.getClazz().getClassLoader().loadClass(pclazz.getClazz().getName()), config);
+			} catch (IllegalArgumentException | BeanTestException | ClassNotFoundException | AssertionError e) {
+				// TODO Auto-generated catch block
+				//e.printStackTrace();
+			}
+
+		}
+	}
+	
+	@Test
+	public void equalsContract() {
+		EqualsVerifier.simple().forClass(DocumentDetail.class).suppress(Warning.STRICT_INHERITANCE).verify();
+	}
+	
+	/*
+	 * @Test public void pageDataDto() {
+	 * 
+	 * 
+	 * 
+	 * DocumentPageData data = new DocumentPageData(1, "ABC".getBytes());
+	 * DocumentPageData data1 = new DocumentPageData(1, "ANC".getBytes());
+	 * 
+	 * data.setData("ABC".getBytes()); data.setPageNo(1);
+	 * 
+	 * data.getData(); data.getPageNo();
+	 * 
+	 * data1.getData(); data1.getPageNo();
+	 * 
+	 * data.getData().toString(); data.getPageNo().toString();
+	 * 
+	 * data1.getData().toString(); data1.getPageNo().toString();
+	 * 
+	 * 
+	 * 
+	 * }
+	 * 
+	 * @Test public void SplitPageResponseDto() {
+	 * 
+	 * 
+	 * SplitPageResponse data = new SplitPageResponse(1, "ABC"); SplitPageResponse
+	 * data1 = new SplitPageResponse(1, "ANC");
+	 * 
+	 * data.setImageSource("ABC"); data.setPageNo(1);
+	 * 
+	 * data.getImageSource(); data.getPageNo();
+	 * 
+	 * data1.getImageSource(); data1.getPageNo();
+	 * 
+	 * data.getImageSource().toString(); data.getPageNo().toString();
+	 * 
+	 * data1.getImageSource().toString(); data1.getPageNo().toString();
+	 * 
+	 * 
+	 * 
+	 * }
+	 * 
+	 * @Test public void SingleThumbnailResponseDto() {
+	 * 
+	 * DocumentOpenDTO documentOpenDTO = new DocumentOpenDTO("ABC");
+	 * 
+	 * 
+	 * String a = Order.Type.DO.toString(); String b = Order.Type.SO.toString();
+	 * String c = Order.Type.WO.toString();
+	 * 
+	 * 
+	 * Arrays.asList(com.wk.gbs.dc.model.State.values()).forEach(o -> {
+	 * o.toString(); });
+	 * 
+	 * SingleThumbnailResponse data = new SingleThumbnailResponse("1",
+	 * "ABC".getBytes()); SingleThumbnailResponse data1 = new
+	 * SingleThumbnailResponse("1", "ANC".getBytes());
+	 * 
+	 * 
+	 * data.setImageSource("ABC".getBytes()); data.setDocUri("");
+	 * 
+	 * data.getDocUri(); data.getImageSource();
+	 * 
+	 * data1.getDocUri(); data1.getImageSource();
+	 * 
+	 * data.getDocUri().toString(); data.getImageSource().toString();
+	 * 
+	 * data1.getDocUri().toString(); data1.getImageSource().toString();
+	 * 
+	 * 
+	 * }
+	 */
+	
+	
+	/*
+	 * @Test public void dtoDocumentPage() {
+	 * 
+	 * List<PojoClass> pojoClasses = PojoClassFactory.getPojoClasses(POJO_PACKAGE,
+	 * new FilterPackageInfo());
+	 * 
+	 * Configuration config = new
+	 * ConfigurationBuilder().ignoreProperty("content").ignoreProperty("data")
+	 * .ignoreProperty("file").build();
+	 * 
+	 * for (PojoClass pclazz : pojoClasses) {
+	 * 
+	 * try { Class<?> info = DocumentPageData.class;//
+	 * pclazz.getClazz().getClassLoader().loadClass(pclazz.getClazz().getName());
+	 * int modifiers = info.getModifiers(); if (Modifier.isAbstract(modifiers) ||
+	 * Modifier.isInterface(modifiers) || info.equals(this.getClass()) ||
+	 * info.isEnum()) { continue; }
+	 * 
+	 * beanTester.testBean(pclazz.getClazz().getClassLoader().loadClass(pclazz.
+	 * getClazz().getName()), config); } catch (IllegalArgumentException |
+	 * BeanTestException | ClassNotFoundException | AssertionError e) { // TODO
+	 * Auto-generated catch block e.printStackTrace(); }
+	 * 
+	 * } }
+	 */
+}
