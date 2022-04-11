@@ -23,7 +23,16 @@ Jun 22, 2021 with Google Drive Web
 Add a description
 Viewers can download
 package com.wk.gbs.dc.web;
-
+<dependency>
+			<groupId>org.meanbean</groupId>
+			<artifactId>meanbean</artifactId>
+			<version>2.0.3</version>
+		</dependency>
+		<dependency>
+			<groupId>nl.jqno.equalsverifier</groupId>
+			<artifactId>equalsverifier</artifactId>
+			<version>2.2</version>
+		</dependency>
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
