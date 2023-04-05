@@ -1,0 +1,93 @@
+package com.wk.gbs.dc.service.order.integration;
+
+import java.io.IOException;
+
+import javax.xml.bind.JAXBElement;
+import javax.xml.transform.TransformerException;
+
+import org.springframework.util.StringUtils;
+import org.springframework.ws.WebServiceMessage;
+import org.springframework.ws.client.core.WebServiceMessageCallback;
+import org.springframework.ws.soap.client.core.SoapActionCallback;
+
+//import com.wk.gbs.dc.order.GetOrderInfoRequest;
+//import com.wk.gbs.dc.order.GetOrderInfoResponse;
+//import com.wk.gbs.dc.order.ObjectFactory;
+import com.wk.gbs.dc.service.document.IIBServiceUnavailableException;
+import com.wk.gbs.dc.util.Logging;
+import com.wk.gbs.dc.util.OrderConstant;
+import com.wk.gbs.framework.service.soap.SOAPServiceClient;
+import com.wkglobal.getorderdetailsv3wsdl.GetOrderDetails;
+import com.wkglobal.getorderdetailsv3wsdl.GetOrderDetailsRequest;
+import com.wkglobal.getorderdetailsv3wsdl.GetOrderDetailsResponse;
+import com.wkglobal.getorderdetailsv3wsdl.ObjectFactory;
+
+
+/**
+ * 
+ * @author Karthik.Nanduri
+ *
+ */
+@Logging
+public class IIBOrderServiceClient extends SOAPServiceClient {
+
+	@Override
+	public Object marshalSendAndReceive(String uri, Object payload, String soapAction) {
+		return marshalSendAndReceive(uri, payload, new SoapActionCallback(soapAction));
+	}
+
+	static class WsOrderCallback implements WebServiceMessageCallback {
+		
+		private final String soapAction;
+		
+		/**
+		 * Create a new {@code SoapActionCallback} with the given string SOAPAction.
+		 */
+		public WsOrderCallback(String soapAction) {
+			if (!StringUtils.hasText(soapAction)) {
+				soapAction = "\"\"";
+			}
+			this.soapAction = soapAction;
+		}	
+
+		@Override
+		public void doWithMessage(WebServiceMessage message) throws IOException, TransformerException {
+			
+		}
+
+	}
+
+	/**
+	 * 
+	 * @param request
+	 * @return
+	 */
+//	public GetOrderInfoResponse getOrderDetails(GetOrderDetailsRequest request) {
+//
+//		try {
+//			JAXBElement<GetOrderInfoRequest> getOrderRequest = new ObjectFactory().createGetOrderDetailsV2Element(request);
+//			Object response = marshalSendAndReceive(getOrderRequest,OrderConstant.IIB_ORDER_SERVICE_URI);	
+//			JAXBElement<GetOrderInfoResponse> serviceResponse = (JAXBElement<GetOrderInfoResponse>) response;
+//			return serviceResponse.getValue();
+//		} catch (Exception e) {
+//			throw new IIBServiceUnavailableException("Error making IIBService call to get orders.", e);
+//		}
+//
+//	}
+	
+	
+	
+	public GetOrderDetailsResponse getOrderDetails(GetOrderDetailsRequest request) {
+
+		try {
+			JAXBElement<GetOrderDetailsRequest> getOrderRequest = new ObjectFactory().createGetOrderDetailsV3Request(request);
+			Object response = marshalSendAndReceive(getOrderRequest,OrderConstant.IIB_ORDER_SERVICE_URI);	
+			JAXBElement<GetOrderDetailsResponse> serviceResponse = (JAXBElement<GetOrderDetailsResponse>) response;
+			return serviceResponse.getValue();
+		} catch (Exception e) {
+			throw new IIBServiceUnavailableException("Error making IIBService call to get orders.", e);
+		}
+
+	}
+
+}
