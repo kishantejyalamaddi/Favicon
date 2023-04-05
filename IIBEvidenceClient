@@ -1,0 +1,48 @@
+package com.wk.gbs.dc.service.order.integration;
+
+import javax.xml.bind.JAXBElement;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.ws.soap.client.core.SoapActionCallback;
+
+import com.wk.gbs.dc.launchEvidence.EvidenceRequest;
+import com.wk.gbs.dc.launchEvidence.EvidenceResponse;
+import com.wk.gbs.dc.launchEvidence.ObjectFactory;
+import com.wk.gbs.dc.util.Logging;
+import com.wk.gbs.framework.service.soap.SOAPServiceClient;
+/**
+ * @author Kishan.Yalamaddi
+ *
+ */
+@Logging
+public class IIBLaunchEvidenceClient extends SOAPServiceClient {
+	
+	private Logger logger = LoggerFactory.getLogger(this.getClass());
+	
+	@Value("${IIB_LAUNCH_EVIDENCE_URI}")
+	private String IIB_LAUNCH_EVIDENCE_URI;
+	
+	@SuppressWarnings("unchecked")
+	public EvidenceResponse getEvidence(EvidenceRequest request) {
+
+		JAXBElement<EvidenceRequest> getLaunchEvidenceRequest = new ObjectFactory().createEvidenceRequest(request);
+
+		Object response = marshalSendAndReceive(getLaunchEvidenceRequest, IIB_LAUNCH_EVIDENCE_URI);
+
+		JAXBElement<EvidenceResponse> serviceResponse = (JAXBElement<EvidenceResponse>) response;
+		logger.debug("ServiceResponse : " + serviceResponse);
+
+		return serviceResponse.getValue();
+
+	}
+	
+	@Override
+	public Object marshalSendAndReceive(String uri, Object payload, String soapAction) {
+		return marshalSendAndReceive(uri, payload, new SoapActionCallback(soapAction));
+	}
+
+
+
+}
