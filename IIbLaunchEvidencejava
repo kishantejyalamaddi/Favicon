@@ -1,0 +1,138 @@
+package com.wk.gbs.dc.service;
+
+import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.GregorianCalendar;
+import java.util.List;
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
+import javax.xml.datatype.DatatypeConfigurationException;
+import javax.xml.datatype.DatatypeFactory;
+import javax.xml.datatype.XMLGregorianCalendar;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+import com.wk.gbs.dc.launchEvidence.EvidenceRequest;
+import com.wk.gbs.dc.launchEvidence.EvidenceResponse;
+import com.wk.gbs.dc.launchEvidence.IIBEvidenceRequestType;
+import com.wk.gbs.dc.launchEvidence.UUIDMetaDataRequestType;
+import com.wk.gbs.dc.model.EmaiLogs;
+import com.wk.gbs.dc.model.EmaiLogsRequest;
+import com.wk.gbs.dc.model.dto.LaunchEvidenceErrorDTO;
+import com.wk.gbs.dc.repository.TEMAIL_EVENT_LOG_Repository;
+import com.wk.gbs.dc.service.document.ExceptionEmailToServiceTeam;
+import com.wk.gbs.dc.service.document.LaunchEvidenceIIBServiceException;
+import com.wk.gbs.dc.service.order.integration.IIBLaunchEvidenceClient;
+
+@Component
+public class IIBLaunchEvidence {
+
+	private Logger logger = LoggerFactory.getLogger(this.getClass());
+	@PersistenceContext
+	EntityManager em;
+
+	@Autowired
+	private IIBLaunchEvidenceClient iiblaunchService;
+
+	@Autowired
+	private TEMAIL_EVENT_LOG_Repository emailRepo;
+
+	@Autowired
+	private ExceptionEmailToServiceTeam emailHandler;
+	
+
+	public Boolean callIIB(EmaiLogsRequest launchEvidence, long tick, String lineNumbers) {
+		Boolean status = Boolean.FALSE;
+		EvidenceRequest evidenceRequest = new EvidenceRequest();
+
+		UUIDMetaDataRequestType uuidMetaDataRequesttype = new UUIDMetaDataRequestType();
+
+		IIBEvidenceRequestType iibEvidenceRequestType = new IIBEvidenceRequestType();
+
+		XMLGregorianCalendar xmlDate = null;
+		GregorianCalendar gc = new GregorianCalendar();
+		gc.setTime(new Date());
+		try {
+			xmlDate = DatatypeFactory.newInstance().newXMLGregorianCalendar(gc);
+
+			uuidMetaDataRequesttype.setUUID(String.valueOf(tick));
+			uuidMetaDataRequesttype.setTargetSystemName("IIB");
+			uuidMetaDataRequesttype.setCallingSystemName("DocCentral");
+			uuidMetaDataRequesttype.setUniqueCallingUserId(
+					launchEvidence.getUserID().isEmpty() ? "3183549" : launchEvidence.getUserID());
+			uuidMetaDataRequesttype.setRequestDateTime(xmlDate);
+			iibEvidenceRequestType.setApplicationCode("DC");
+			iibEvidenceRequestType.setLineNumbers(lineNumbers);
+			iibEvidenceRequestType
+					.setUserId(launchEvidence.getUserID().isEmpty() ? "3183549" : launchEvidence.getUserID());
+			iibEvidenceRequestType.setSUBJECT(launchEvidence.getSubjectLine());
+			iibEvidenceRequestType.setTransactionID(new BigDecimal(tick));
+			iibEvidenceRequestType.setCodeType(launchEvidence.getCodeType());
+			iibEvidenceRequestType.setOrderCompany(launchEvidence.getOrderCompany());
+			iibEvidenceRequestType.setOrderType(launchEvidence.getOrderType());
+			iibEvidenceRequestType.setOrderNumber(new BigDecimal(launchEvidence.getOrderNumber()));
+			iibEvidenceRequestType.setEvidenceType(launchEvidence.getEvidenceType());
+			iibEvidenceRequestType.setToEmailAddress(launchEvidence.getToAddress());
+			iibEvidenceRequestType.setSuggestionText(launchEvidence.getSuggestedText());
+
+			evidenceRequest.setIIBEvidenceInfo(iibEvidenceRequestType);
+			evidenceRequest.setUUIDMetaDataRequest(uuidMetaDataRequesttype);
+
+			EvidenceResponse response = iiblaunchService.getEvidence(evidenceRequest);
+			LaunchEvidenceErrorDTO error = new LaunchEvidenceErrorDTO();
+			if (response.getErrorMessages() != null) {				
+				response.getErrorMessages().getErrorMessage().forEach(t -> {
+					if (t.getErrorMessageCode() == "100")
+						error.setErrorMessage("Insufficient Mandatory Data provided to Service,");
+					else if (t.getErrorMessageCode() == "200")
+						error.setErrorMessage("Invalid Data Input Value, ");
+					else if (t.getErrorMessageCode() == "400")
+						error.setErrorMessage("Validation Error, ");
+					else if (t.getErrorMessageCode() == "500")
+						error.setErrorMessage("Technical Failure On The Service, ");
+					else
+						error.setErrorMessage("Unknown Error, "+ t.getErrorMessageCode() +"\n"+ t.getErrorMessageDescription());
+					logger.error("Error from IIB: "+ response.getErrorMessages().getErrorMessage().size() +" "+ error.getErrorMessage());
+				});
+				throw new LaunchEvidenceIIBServiceException(error.getErrorMessage());
+			}
+			status = Boolean.TRUE;
+			logger.debug("Evidence Request Info : " + evidenceRequest.getIIBEvidenceInfo());
+			logger.info("Email IIB Request " + evidenceRequest);
+		} catch (LaunchEvidenceIIBServiceException | DatatypeConfigurationException exception) {
+			logger.info("Failed to call IIB Launch Evidence,  Email IIB Request " + evidenceRequest + "Order Number:- "
+					+ launchEvidence.getOrderNumber(), exception);
+
+			List<String> lines = Arrays.asList(lineNumbers.split(","));
+
+			lines.forEach(r -> {
+				EmaiLogs emailLogs = emailRepo
+						.findTop1ByTransactionIdAndOrderNumberAndLineNumber(tick, Long.valueOf(launchEvidence.getOrderNumber()), Float.valueOf(r));
+
+				if (emailLogs != null) {
+
+					emailLogs.setStatus("EF");
+					emailLogs.setEmailSentStatus('N');
+					emailLogs.setErrorCode(440);
+					emailLogs.setErrorDescription("IIB Failed");
+					emailLogs.setNasLocation1("{0} - Exception: {1}" +
+									emailLogs.getOrderNumber() + "--" + r + "--"
+											+ " IIB call failed within Doc Central." +
+									exception.getMessage().substring(0, exception.getMessage().length() < 300 ?  exception.getMessage().length() : 300)
+							);// Naslocation1 (which is where ErrorMessage ends up) in CT1 is 300
+												// bytes.
+
+					emailRepo.saveAndFlush(emailLogs);
+					emailLogs.setServiceTeamName(launchEvidence.getServiceTeamName());
+					emailHandler.sendEmail(emailLogs);
+				}
+			});
+			status = Boolean.FALSE;
+		}
+
+		return status;
+	}
+
+}
