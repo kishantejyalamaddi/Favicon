@@ -1,0 +1,98 @@
+public class SOAPServiceClient {
+	
+
+		protected WebServiceTemplate webServiceTemplate;
+		protected String url;
+		
+		/**
+		 * 
+		 * @param uri
+		 * @param payload
+		 * @param soapAction
+		 * @return
+		 */
+		
+		public Object marshalSendAndReceive(String uri, Object payload, String soapAction){
+			return webServiceTemplate.marshalSendAndReceive(uri, payload, new SoapActionCallback(soapAction));	
+		}
+		
+		/**
+		 * 
+		 * @param uri
+		 * @param payload
+		 * @param obj
+		 * @return
+		 */
+		public Object marshalSendAndReceive(String uri, Object payload, WebServiceMessageCallback obj){
+			return webServiceTemplate.marshalSendAndReceive(uri, payload, obj);		
+		}
+		
+		/**
+		 * 
+		 * @param payload
+		 * @param soapAction
+		 * @return
+		 */
+		public Object marshalSendAndReceive(Object payload, String soapAction){
+			return marshalSendAndReceive(url, payload, soapAction);		
+		}
+	
+		/**
+		 * 
+		 * @return
+		 */
+		public WebServiceTemplate getWebServiceTemplate() {
+			return webServiceTemplate;
+		}
+		
+
+		/**
+		 * 
+		 * @param webServiceTemplate
+		 */
+		public void setWebServiceTemplate(WebServiceTemplate webServiceTemplate) {
+			this.webServiceTemplate = webServiceTemplate;
+		}
+
+		/**
+		 * @return the url
+		 *//*
+		public String getUrl() {
+			return url;
+		}*/
+
+		/**
+		 * @param url the url to set
+		 */
+		public void setUrl(String url) {
+			this.url = url;
+		}
+		/*
+		*//**
+		 * Inner class to print SOAP requests to console
+		 *
+		 *//*
+		class WSCallback implements WebServiceMessageCallback {
+
+			private final String soapAction;	
+
+			*//**
+			 * Create a new {@code SoapActionCallback} with the given string
+			 * SOAPAction.
+			 *//*
+			public WSCallback(String soapAction) {
+				if (!StringUtils.hasText(soapAction)) {
+					soapAction = "\"\"";
+				}
+				this.soapAction = soapAction;
+			}
+			
+			public void doWithMessage(WebServiceMessage message) throws IOException {
+				Assert.isInstanceOf(SoapMessage.class, message);
+				SoapMessage soapMessage = (SoapMessage) message;
+				ByteArrayOutputStream baos = new ByteArrayOutputStream();
+				soapMessage.writeTo(baos);
+				soapMessage.setSoapAction(soapAction);
+			}
+		}*/
+	}
