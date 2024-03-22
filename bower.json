@@ -1,20 +1,27 @@
-{
-  "name": "bower",
-  "description": "bower",
-  "main": "bower",
-  "authors": [
-    "bower"
-  ],
-  "license": "bower",
-  "keywords": [
-    "bower"
-  ],
-  "homepage": "bower",
-  "ignore": [
-    "**/.*",
-    "node_modules",
-    "bower_components",
-    "test",
-    "tests"
-  ]
-}
+WITH rptg AS (
+    SELECT TO_CHAR((SELECT "GEA*.timestamp_ny()), 'уууут'))::INTEGER AS rptg_prd
+),
+tmp AS (
+    SELECT a.agmt_id AS EDI_evnt_enty_id,
+           a.data_rcon_rptg_prd,
+           a.colt_pool_typ,
+           ROW_NUMBER() OVER (PARTITION BY a.agmt_id ORDER BY
+                              CASE WHEN a.colt_pool_typ = 'UNMenty' THEN 1
+                                   WHEN a.colt_pool_typ = 'GNMA-REMIC' THEN 2
+                                   WHEN a.colt_pool_typ = 'REMIC' THEN 3
+                                   WHEN a.colt_pool_typ = 'SMBS' THEN 4
+                                   ELSE 5
+                              END
+                             ) AS row_num
+    FROM data_src_rcon a, rptg
+    WHERE a.data_rcon_rptg_prd = rptg.rptg_prd
+)
+SELECT COALESCE(dsn.data_rcon_rptg_prd, ddr.data_rcon_rptg_prd) AS data_rcon_ptg_prd,
+       COALESCE(colt_pool_typ, 'UNKNOWN') AS colt_pool_typ,
+       SUM(CASE WHEN EDI_evnt_enty_id IS NOT NULL THEN 1 ELSE 0 END) AS expected,
+       SUM(CASE WHEN CSS_evnt_enty_id IS NOT NULL THEN 1 ELSE 0 END) AS Received,
+       SUM(CASE WHEN EDI_evnt_enty_id IS NOT NULL AND CSS_evnt_enty_id IS NULL THEN 1 ELSE 0 END) AS Missing
+FROM tmp
+FULL JOIN ddr ON dr.EDI_EVNT_ENTY_ID = ddr.CSS_evnt_enty_id
+GROUP BY COALESCE(dsr.data_rcon_rptg_prd, ddr.data_rcon_rptg_prd),
+         COALESCE(colt_pool_typ, 'UNKNOWN');
