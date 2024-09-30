@@ -1,32 +1,17 @@
- @Test
-    public void testApply_MissingAuthorizationHeader() {
-        // Mock objects
-        ServerWebExchange exchange = mock(ServerWebExchange.class);
-        ServerHttpRequest request = mock(ServerHttpRequest.class);
-        ServerHttpResponse response = mock(ServerHttpResponse.class);
 
-        // Configure the mocks
-        when(exchange.getRequest()).thenReturn(request);
-        when(exchange.getResponse()).thenReturn(response);
-        when(request.getMethod()).thenReturn(HttpMethod.GET);
+org.mockito.exceptions.misusing.WrongTypeOfReturnValue: 
+null cannot be returned by setStatusCode()
+setStatusCode() should return boolean
+***
+If you're unsure why you're getting above error read on.
+Due to the nature of the syntax above problem might occur because:
+1. This exception *might* occur in wrongly written multi-threaded tests.
+   Please refer to Mockito FAQ on limitations of concurrency testing.
+2. A spy is stubbed using when(spy.foo()).then() syntax. It is safer to stub spies - 
+   - with doReturn|Throw() family of methods. More in javadocs for Mockito.spy() method.
 
-        // Simulate missing Authorization header
-        when(request.getHeaders()).thenReturn(new HttpHeaders());
 
-        // Mock the void method setStatusCode with doNothing
-        doNothing().when(response).setStatusCode(any(HttpStatus.class));
-
-        // Initialize the authentication filter (replace with your actual filter setup)
-        AuthenticationFilter authenticationFilter = new AuthenticationFilter(/*pass required dependencies*/);
-
-        // Call the filter's apply method and pass the mock exchange
-        Mono<Void> result = authenticationFilter.apply(new AuthenticationFilter.Config()).filter(exchange, chain -> Mono.empty());
-
-        // Assert that the filter returns an error due to missing Authorization header
-        StepVerifier.create(result)
-                .expectErrorMatches(throwable -> throwable.getMessage().contains("Missing Authorization token"))
-                .verify();
-
-        // Verify the status code is set to 401 UNAUTHORIZED
-        verify(response, times(1)).setStatusCode(HttpStatus.UNAUTHORIZED);
-    }
+	at com.tep.qtestwrapper.tests.AuthenticationFilterTest.testApply_MissingAuthorizationHeader(AuthenticationFilterTest.java:135)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
