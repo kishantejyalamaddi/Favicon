@@ -1,304 +1,165 @@
 package com.tep.qtestwrapper.filter;
 
-import com.google.gson.Gson;
 import com.tep.qtestwrapper.config.ApplicationProperties;
 import com.tep.qtestwrapper.model.AuthCredentials;
 import com.tep.qtestwrapper.model.TokenPayload;
 import com.tep.qtestwrapper.model.User;
 import com.tep.qtestwrapper.service.AuthConfig;
 import com.tep.qtestwrapper.service.CacheService;
-import org.apache.commons.codec.binary.Base64;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cloud.gateway.filter.GatewayFilter;
-import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
-import org.springframework.cloud.gateway.route.Route;
-import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
-import org.springframework.core.io.buffer.DataBuffer;
-import org.springframework.http.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.springframework.cloud.gateway.filter.GatewayFilterChain;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
-import org.springframework.stereotype.Component;
-import org.springframework.util.MultiValueMap;
-import org.springframework.web.reactive.function.client.ClientResponse;
-import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
+import reactor.test.StepVerifier;
 
-@Component
-public class AuthenticationFilter extends AbstractGatewayFilterFactory<AuthenticationFilter.Config> {
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+import static org.springframework.http.HttpMethod.GET;
+import static org.springframework.http.HttpStatus.OK;
+import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
-    @Autowired
+class AuthenticationFilterTest {
+
+    @Mock
     private AuthConfig authConfig;
-    @Autowired
+
+    @Mock
     private CacheService cacheService;
 
-    private final WebClient webClient;
-
-    @Autowired
+    @Mock
     private ApplicationProperties properties;
 
+    @Mock
+    private WebClient webClient;
 
-    public AuthenticationFilter(WebClient.Builder webClientBuilder) {
-        super(Config.class);
-        this.webClient = WebClient.builder()
-                .exchangeStrategies(ExchangeStrategies.builder()
-                        .codecs(configure -> configure.defaultCodecs().maxInMemorySize(10 * 1024 * 1024)) // 10 MB buffer limit
-                        .build())
-                .build();
+    @Mock
+    private ServerWebExchange exchange;
+
+    @Mock
+    private ServerHttpRequest request;
+
+    @Mock
+    private ServerHttpResponse response;
+
+    @Mock
+    private GatewayFilterChain chain;
+
+    @InjectMocks
+    private AuthenticationFilter filter;
+
+    @BeforeEach
+    void setup() {
+        filter = new AuthenticationFilter(WebClient.builder());
+        when(exchange.getRequest()).thenReturn(request);
+        when(exchange.getResponse()).thenReturn(response);
     }
 
+    @Test
+    void testApply_WhenAuthorizationTokenMissing_ShouldReturnUnauthorized() {
+        // Arrange
+        when(request.getHeaders()).thenReturn(new HttpHeaders());
+        when(response.setStatusCode(UNAUTHORIZED)).thenReturn(response);
 
-    private static final Logger logger = LoggerFactory.getLogger(AuthenticationFilter.class);
+        // Act
+        Mono<Void> result = filter.apply(new AuthenticationFilter.Config()).filter(exchange, chain);
 
+        // Assert
+        StepVerifier.create(result)
+                .expectComplete()
+                .verify();
 
-    @Override
-    public GatewayFilter apply(Config config) {
-        return (exchange, chain) -> {
-
-            /*
-               Validate if the Requested HTTPMethod allowed or not
-             */
-
-            ServerHttpRequest request = exchange.getRequest();
-
-            logger.info("Started routing: incoming request:-{} ", request.getPath());
-            Route route = exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR);
-            logger.info("Route attribute, ID:- {} ", Objects.requireNonNull(route).getId());
-            logger.info("Checking if HTTPMethod is allowed :- {} ", request.getMethod().toString());
-            List<String> allowedMethods = Arrays.asList(Objects.requireNonNull(route).getMetadata().get("method").toString().split(","));
-
-            if (!allowedMethods.contains(request.getMethod().toString())) {
-                logger.error("HTTPMethod is not allowed :-{} ", request.getMethod().toString());
-                return onError(exchange, "Method not allowed. Method:-{} " + request.getMethod(), HttpStatus.METHOD_NOT_ALLOWED);
-            }
-
-            /*
-               Extract and Validate Authorization token
-             */
-
-            String authorization_token = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-
-            logger.info("Fetching the token from headers: token:-{} ", authorization_token);
-
-            if (authorization_token == null) {
-                logger.error("Unable to fetch the token from headers: token");
-                return onError(exchange, "Missing Authorization token in headers", HttpStatus.UNAUTHORIZED);
-            }
-
-            Mono<TokenPayload> tokenPayloadMono = decodeToken(authorization_token, exchange);
-
-            return tokenPayloadMono.flatMap(tokenPayload ->
-                    validateClientIdAndRoleInUrl(tokenPayload.getAud(), exchange.getRequest().getPath().toString(), exchange)
-                            .flatMap(userCred -> {
-                                logger.info("Fetching the token from headers: token:-{} ", authorization_token);
-                                String decodePwd = new String(new Base64().decode(userCred.getPassword().getBytes()));
-                                logger.info("Credentials are decoded");
-                                return cacheService.getOrFetchToken(tokenPayload.getAud(), userCred.getUsername(),decodePwd,"password");
-                            })
-                            .flatMap(token -> {
-                                String targetHostName = properties.getTargetHost();
-                                logger.info("Target HostName:- {} ", targetHostName);
-                                logger.info("Exchange request URI:- {} ", exchange.getRequest().getURI().toString());
-                                // Get the appropriate target URI from the route definition
-                                URI targetUri = replaceHost(exchange.getRequest().getURI().toString(), targetHostName);
-                                logger.info("Target URI:- {} ", targetUri);
-                                String newPath = stripPrefix(targetUri.getPath(), 2);
-
-                                logger.info("Navigating the request to QTest:- {} ", exchange.getRequest().getURI());
-                                return chain.filter(exchange).then(
-                                        Mono.defer(() -> {
-                                            // Capture the incoming HTTP method (GET, POST, etc.)
-                                            HttpMethod incomingMethod = exchange.getRequest().getMethod();
-
-                                            // Build the webClient request dynamically based on the incoming method
-                                            WebClient.RequestBodySpec requestSpec = webClient
-                                                    .method(incomingMethod)  // Use the incoming method (GET, POST, etc.)
-                                                    .uri(targetHostName + newPath)
-                                                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
-
-                                            // For methods like POST or PUT, handle the request body
-                                            if (incomingMethod == HttpMethod.POST || incomingMethod == HttpMethod.PUT) {
-                                                // Copy the incoming request body to the target request
-                                                return exchange.getRequest().getBody()
-                                                        .collectList()
-                                                        .flatMap(bodyBuffers -> {
-                                                            byte[] requestBodyBytes = bodyBuffers.stream()
-                                                                    .map(dataBuffer -> {
-                                                                        byte[] bytes = new byte[dataBuffer.readableByteCount()];
-                                                                        dataBuffer.read(bytes);
-                                                                        return bytes;
-                                                                    })
-                                                                    .reduce(new byte[0], (a, b) -> {
-                                                                        byte[] result = new byte[a.length + b.length];
-                                                                        System.arraycopy(a, 0, result, 0, a.length);
-                                                                        System.arraycopy(b, 0, result, a.length, b.length);
-                                                                        return result;
-                                                                    });
-
-                                                            return requestSpec
-                                                                    .bodyValue(requestBodyBytes)
-                                                                    .exchangeToMono(response -> response.toEntity(String.class)
-                                                                            .flatMap(resEntity -> handleResponse(exchange, resEntity)));
-                                                        });
-                                            } else {
-                                                // For methods like GET or DELETE, just send the request without a body
-                                                return requestSpec
-                                                        .exchangeToMono(response -> response.toEntity(String.class)
-                                                                .flatMap(resEntity -> handleResponse(exchange, resEntity)));
-                                            }
-                                        })
-                                );
-
-                            })
-                            .onErrorResume(e -> onError(exchange, e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR)) // Handle validation errors
-            );
-        };
+        Mockito.verify(response).setStatusCode(UNAUTHORIZED);
     }
 
-    private Mono<Void> handleResponse(ServerWebExchange exchange, ResponseEntity<String> resEntity) {
-        // Log the response body for debugging
-        String responseBody = resEntity.getBody();
-        System.out.println("Response Body: " + responseBody);
+    @Test
+    void testApply_WhenTokenDecodedAndClientIdMissing_ShouldReturnUnauthorized() {
+        // Arrange
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.AUTHORIZATION, "Bearer some.invalid.token");
+        when(request.getHeaders()).thenReturn(headers);
+        when(response.setStatusCode(UNAUTHORIZED)).thenReturn(response);
 
-        // Set the appropriate status code and content type
-        exchange.getResponse().setStatusCode(resEntity.getStatusCode());
-        exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
+        // Mock the token decoding process
+        when(exchange.getRequest()).thenReturn(request);
+        when(filter.decodeToken(any(), any()))
+                .thenReturn(Mono.empty());
 
-        // Ensure response is not chunked by setting content-length explicitly
-        byte[] bytes = responseBody.getBytes(StandardCharsets.UTF_8);
-        exchange.getResponse().getHeaders().setContentLength(bytes.length);
+        // Act
+        Mono<Void> result = filter.apply(new AuthenticationFilter.Config()).filter(exchange, chain);
 
-        // Write the response body to the response and complete
-        DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(bytes);
-        return exchange.getResponse().writeWith(Mono.just(buffer))
-                .doOnError(error -> System.err.println("Error while writing response: " + error.getMessage()));
+        // Assert
+        StepVerifier.create(result)
+                .expectComplete()
+                .verify();
+
+        Mockito.verify(response).setStatusCode(UNAUTHORIZED);
     }
 
-    public static URI replaceHost(String originalUrl, String newHost)  {
-        URI originalURI = null;
-        URI newHostURI = null;
-        try {
-            originalURI = new URI(originalUrl);
-            newHostURI = new URI(newHost);
-            return new URI(newHostURI.getScheme(), newHostURI.getHost(), originalURI.getPath(), originalURI.getQuery(), originalURI.getFragment());
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
+    @Test
+    void testApply_WhenMethodNotAllowed_ShouldReturnMethodNotAllowed() {
+        // Arrange
+        when(request.getMethod()).thenReturn(GET); // Simulate a GET method
+        when(request.getHeaders()).thenReturn(new HttpHeaders());
+
+        // Mock route metadata to disallow GET
+        when(exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR)).thenReturn(createMockRoute("POST"));
+
+        // Act
+        Mono<Void> result = filter.apply(new AuthenticationFilter.Config()).filter(exchange, chain);
+
+        // Assert
+        StepVerifier.create(result)
+                .expectComplete()
+                .verify();
+
+        Mockito.verify(response).setStatusCode(HttpStatus.METHOD_NOT_ALLOWED);
     }
 
-    /**
-     * This methiod will validate clientID is configured and its corresponding role
-     *
-     * @param clientId
-     * @param originalUrl
-     * @param exchange
-     * @return
-     */
-    public Mono<User> validateClientIdAndRoleInUrl(String clientId, String originalUrl, ServerWebExchange exchange) {
-        logger.info("Validating token and role");
-        // Step 1: Extract the role from the URL
-        String[] urlParts = originalUrl.split("/");
-        if (urlParts.length < 2) {
-            return onError(exchange, "Invalid URL format" , HttpStatus.BAD_GATEWAY).then(Mono.empty());
-        }
-        String roleInUrl = urlParts[1];
-
-        // Step 2: Check if clientId exists in the credentials map
-        AuthCredentials credentials = authConfig.getCredentials();
-        boolean clientIdExists = credentials.getUsers().stream().anyMatch(key -> key.getClientid().equalsIgnoreCase(clientId));
-
-        if (!clientIdExists) {
-            return onError(exchange, "Client ID not found", HttpStatus.NOT_FOUND)
-                    .then(Mono.empty());
-        }
-
-        // Find the role associated with the clientId
-        User user = getRoleByClientId(clientId, authConfig.getCredentials());
-
-        if (user == null) {
-            return onError(exchange, "Role is not mapped for clientId: " + clientId, HttpStatus.NOT_FOUND).then(Mono.empty());
-        }
-        String userRole = user.getRole();
-        if (userRole == null) {
-            return onError(exchange, "Role is not mapped for clientId: " + clientId, HttpStatus.NOT_FOUND).then(Mono.empty());
-        }
-        if (!userRole.equalsIgnoreCase(roleInUrl)) {
-            return onError(exchange, "Role is not matched. Access denied", HttpStatus.FORBIDDEN).then(Mono.empty());
-        }
-        logger.info("ClientID and Role is validated successfully: clientID:- {} , Role:- {}", clientId, user.getRole());
-        return Mono.just(user);
+    private Route createMockRoute(String allowedMethods) {
+        Route route = Mockito.mock(Route.class);
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("method", allowedMethods);
+        when(route.getMetadata()).thenReturn(metadata);
+        return route;
     }
 
-    public User getRoleByClientId(String clientId, AuthCredentials authCredentials) {
-        for (User user : authCredentials.getUsers()) {
-            if (user.getClientid().equals(clientId)) {
-                return user;
-            }
-        }
-        return null;
-    }
+    @Test
+    void testApply_WhenValidTokenAndRequest_ShouldProceedWithRequest() {
+        // Arrange
+        String token = "valid.token";
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.AUTHORIZATION, "Bearer " + token);
 
-    public Mono<TokenPayload> decodeToken(String authorizationToken, ServerWebExchange exchange) {
-        logger.info("Decoding token");
-        String chunks = authorizationToken.split("\\.")[1];
-        String payload = "";
-        payload = new String(Base64.decodeBase64(chunks), StandardCharsets.UTF_8);
-        Gson gson = new Gson();
-        TokenPayload tokenPayload = gson.fromJson(payload,TokenPayload.class);
-        String clientID = tokenPayload.getAud();
+        when(request.getHeaders()).thenReturn(headers);
+        when(request.getURI()).thenReturn(URI.create("http://localhost/test"));
+        when(request.getMethod()).thenReturn(GET);
+        
+        // Simulate valid token decoding
+        TokenPayload tokenPayload = new TokenPayload();
+        tokenPayload.setAud("client-id");
+        when(filter.decodeToken(any(), any())).thenReturn(Mono.just(tokenPayload));
 
-        logger.info("Decoding is completed: ClientID:- {} ", clientID);
+        // Simulate cacheService.getOrFetchToken
+        when(cacheService.getOrFetchToken(any(), any(), any(), any()))
+                .thenReturn(Mono.just("fetched-token"));
 
-        if (clientID == null) {
-            return onError(exchange, "Missing client id in token", HttpStatus.UNAUTHORIZED).then(Mono.empty());
-        }
-        return Mono.just(tokenPayload);
-    }
+        // Act
+        Mono<Void> result = filter.apply(new AuthenticationFilter.Config()).filter(exchange, chain);
 
+        // Assert
+        StepVerifier.create(result)
+                .expectComplete()
+                .verify();
 
-    public Mono<Void> onError(ServerWebExchange exchange, String error, HttpStatus httpStatus) {
-        ServerHttpResponse response = exchange.getResponse();
-        response.setStatusCode(httpStatus);
-
-        // Create a JSON-like response body with the error message
-        String errorMessage = "{\"error\": \"" + error + "\"}";
-        byte[] bytes = errorMessage.getBytes(StandardCharsets.UTF_8);
-        DataBuffer buffer = response.bufferFactory().wrap(bytes);
-
-        // Set headers for JSON response
-        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
-
-        // Write the response and complete it
-        return response.writeWith(Mono.just(buffer));
-    }
-
-    // Helper method to strip prefix
-    private String stripPrefix(String path, int prefixCount) {
-        String[] segments = path.split("/");
-        if (segments.length <= prefixCount) {
-            return "/";
-        }
-        return "/" + String.join("/", Arrays.copyOfRange(segments, prefixCount, segments.length));
-    }
-
-    public static class Config {
-
-        private String role;
-
-        private String methods;
-
-        public String getMethods() { return methods; }
-        public void setMethods(String methods) { this.methods = methods; }
-
-        public String getRole() { return role; }
-        public void setRole(String role) { this.role = role; }
+        Mockito.verify(chain).filter(exchange);
     }
 }
