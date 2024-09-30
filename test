@@ -1,141 +1,34 @@
-import com.tep.qtestwrapper.config.AuthConfig;
-import com.tep.qtestwrapper.model.AuthCredentials;
-import com.tep.qtestwrapper.model.User;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ServerWebExchange;
-import reactor.core.publisher.Mono;
-import reactor.test.StepVerifier;
+ public Mono<User> validateClientIdAndRoleInUrl(String clientId, String originalUrl, ServerWebExchange exchange) {
+        logger.info("Validating token and role");
+        // Step 1: Extract the role from the URL
+        String[] urlParts = originalUrl.split("/");
+        if (urlParts.length < 2) {
+            return onError(exchange, "Invalid URL format" , HttpStatus.BAD_GATEWAY).then(Mono.empty());
+        }
+        String roleInUrl = urlParts[1];
 
-import java.util.Arrays;
-import java.util.Collections;
+        // Step 2: Check if clientId exists in the credentials map
+        AuthCredentials credentials = authConfig.getCredentials();
+        boolean clientIdExists = credentials.getUsers().stream().anyMatch(key -> key.getClientid().equalsIgnoreCase(clientId));
 
-import static org.mockito.Mockito.*;
+        if (!clientIdExists) {
+            return onError(exchange, "Client ID not found", HttpStatus.NOT_FOUND)
+                    .then(Mono.empty());
+        }
 
-class YourServiceTest {
+        // Find the role associated with the clientId
+        User user = getRoleByClientId(clientId, authConfig.getCredentials());
 
-    @Mock
-    private AuthConfig authConfig;
-
-    @Mock
-    private ServerWebExchange exchange;
-
-    @InjectMocks
-    private YourService yourService;  // Replace with your actual service class name
-
-    @BeforeEach
-    void setup() {
-        MockitoAnnotations.openMocks(this);
+        if (user == null) {
+            return onError(exchange, "Role is not mapped for clientId: " + clientId, HttpStatus.NOT_FOUND).then(Mono.empty());
+        }
+        String userRole = user.getRole();
+        if (userRole == null) {
+            return onError(exchange, "Role is not mapped for clientId: " + clientId, HttpStatus.NOT_FOUND).then(Mono.empty());
+        }
+        if (!userRole.equalsIgnoreCase(roleInUrl)) {
+            return onError(exchange, "Role is not matched. Access denied", HttpStatus.FORBIDDEN).then(Mono.empty());
+        }
+        logger.info("ClientID and Role is validated successfully: clientID:- {} , Role:- {}", clientId, user.getRole());
+        return Mono.just(user);
     }
-
-    @Test
-    void testValidateClientIdAndRoleInUrl_InvalidUrl() {
-        Mono<User> result = yourService.validateClientIdAndRoleInUrl("client1", "invalidurl", exchange);
-        StepVerifier.create(result)
-                .expectComplete()
-                .verify();
-
-        // Add verification for the onError method call with "Invalid URL format"
-        // This could be done by mocking the onError method
-    }
-
-    @Test
-    void testValidateClientIdAndRoleInUrl_ClientIdNotFound() {
-        AuthCredentials credentials = mock(AuthCredentials.class);
-        when(authConfig.getCredentials()).thenReturn(credentials);
-        when(credentials.getUsers()).thenReturn(Collections.emptyList());
-
-        Mono<User> result = yourService.validateClientIdAndRoleInUrl("client1", "/role", exchange);
-        StepVerifier.create(result)
-                .expectComplete()
-                .verify();
-
-        // Add verification for the onError method call with "Client ID not found"
-    }
-
-    @Test
-    void testValidateClientIdAndRoleInUrl_RoleNotMappedForClientId() {
-        String clientId = "client1";
-        String originalUrl = "/role";
-
-        AuthCredentials credentials = mock(AuthCredentials.class);
-        User user = null; // Simulate no user found
-
-        when(authConfig.getCredentials()).thenReturn(credentials);
-        when(credentials.getUsers()).thenReturn(Arrays.asList(
-                new User(clientId, "someRole") // Mock a user with a different role
-        ));
-        when(yourService.getRoleByClientId(clientId, credentials)).thenReturn(user);
-
-        Mono<User> result = yourService.validateClientIdAndRoleInUrl(clientId, originalUrl, exchange);
-        StepVerifier.create(result)
-                .expectComplete()
-                .verify();
-
-        // Add verification for the onError method call with "Role is not mapped for clientId"
-    }
-
-    @Test
-    void testValidateClientIdAndRoleInUrl_RoleIsNull() {
-        String clientId = "client1";
-        String originalUrl = "/role";
-
-        AuthCredentials credentials = mock(AuthCredentials.class);
-        User userWithNullRole = new User(clientId, null); // User has null role
-
-        when(authConfig.getCredentials()).thenReturn(credentials);
-        when(credentials.getUsers()).thenReturn(Arrays.asList(userWithNullRole));
-        when(yourService.getRoleByClientId(clientId, credentials)).thenReturn(userWithNullRole);
-
-        Mono<User> result = yourService.validateClientIdAndRoleInUrl(clientId, originalUrl, exchange);
-        StepVerifier.create(result)
-                .expectComplete()
-                .verify();
-
-        // Add verification for the onError method call with "Role is not mapped for clientId"
-    }
-
-    @Test
-    void testValidateClientIdAndRoleInUrl_RoleDoesNotMatch() {
-        String clientId = "client1";
-        String originalUrl = "/admin"; // Role in URL
-
-        AuthCredentials credentials = mock(AuthCredentials.class);
-        User userWithDifferentRole = new User(clientId, "user"); // Different role
-
-        when(authConfig.getCredentials()).thenReturn(credentials);
-        when(credentials.getUsers()).thenReturn(Arrays.asList(userWithDifferentRole));
-        when(yourService.getRoleByClientId(clientId, credentials)).thenReturn(userWithDifferentRole);
-
-        Mono<User> result = yourService.validateClientIdAndRoleInUrl(clientId, originalUrl, exchange);
-        StepVerifier.create(result)
-                .expectComplete()
-                .verify();
-
-        // Add verification for the onError method call with "Role is not matched. Access denied"
-    }
-
-    @Test
-    void testValidateClientIdAndRoleInUrl_Success() {
-        String clientId = "client1";
-        String originalUrl = "/role";
-
-        AuthCredentials credentials = mock(AuthCredentials.class);
-        User userWithMatchingRole = new User(clientId, "role");
-
-        when(authConfig.getCredentials()).thenReturn(credentials);
-        when(credentials.getUsers()).thenReturn(Arrays.asList(userWithMatchingRole));
-        when(yourService.getRoleByClientId(clientId, credentials)).thenReturn(userWithMatchingRole);
-
-        Mono<User> result = yourService.validateClientIdAndRoleInUrl(clientId, originalUrl, exchange);
-        StepVerifier.create(result)
-                .expectNext(userWithMatchingRole)
-                .verifyComplete();
-
-        // Add verification for the successful validation log message
-    }
-}
