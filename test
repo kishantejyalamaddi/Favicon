@@ -1,42 +1,43 @@
-
-    @Mock
-    private AuthConfig authConfig; // Mock the AuthConfig
-
-    @Mock
-    private ServerWebExchange exchange; // Mock the ServerWebExchange
-
-    @InjectMocks
-    private YourService yourService; // Replace with your actual service class name
+    private AuthenticationFilter authenticationFilter;
+    private AuthConfig authConfig;
+    private ServerWebExchange exchange;
 
     @BeforeEach
-    void setup() {
-        MockitoAnnotations.openMocks(this); // Initialize mocks
+    public void setUp() {
+        authConfig = mock(AuthConfig.class);
+        authenticationFilter = new AuthenticationFilter(null); // pass a WebClient.Builder if needed
+        authenticationFilter.authConfig = authConfig; // Inject the mock
+        
+        // Mocking ServerWebExchange and its components
+        exchange = mock(ServerWebExchange.class);
+        ServerHttpRequest request = mock(ServerHttpRequest.class);
+        ServerHttpResponse response = mock(ServerHttpResponse.class);
+        
+        when(exchange.getRequest()).thenReturn(request);
+        when(exchange.getResponse()).thenReturn(response);
     }
 
     @Test
-    void testValidateClientIdAndRoleInUrl_HappyPath() {
-        // Given
-        String clientId = "client1";
-        String originalUrl = "/admin"; // The role in the URL
-        String expectedRole = "admin"; // The expected role for the user
+    public void testValidateClientIdAndRoleInUrl_HappyPath() {
+        // Prepare the test data
+        String clientId = "testClientId";
+        String originalUrl = "/admin/resource";
+        
+        // Create a User and AuthCredentials mock
+        User user = new User();
+        user.setClientid(clientId);
+        user.setRole("admin");
+        
+        AuthCredentials authCredentials = new AuthCredentials();
+        authCredentials.setUsers(Collections.singletonList(user));
+        
+        // Stub the behavior of authConfig
+        when(authConfig.getCredentials()).thenReturn(authCredentials);
 
-        User user = new User(clientId, expectedRole); // Mock User with matching role
-
-        // Mock AuthCredentials and its behavior
-        AuthCredentials credentials = mock(AuthCredentials.class);
-        when(authConfig.getCredentials()).thenReturn(credentials); // Mock the return of getCredentials
-        when(credentials.getUsers()).thenReturn(Arrays.asList(user)); // Mocking the list of users
-
-        // Use a spy and safely stub getRoleByClientId
-        YourService yourServiceSpy = spy(yourService);
-        doReturn(user).when(yourServiceSpy).getRoleByClientId(anyString(), any(AuthCredentials.class));
-
-        // When
-        Mono<User> result = yourServiceSpy.validateClientIdAndRoleInUrl(clientId, originalUrl, exchange);
-
-        // Then
-        StepVerifier.create(result)
-                .expectNext(user) // Expect the user to be returned
-                .verifyComplete(); // Verify that the Mono completes without errors
+        // Call the method under test
+        Mono<User> result = authenticationFilter.validateClientIdAndRoleInUrl(clientId, originalUrl, exchange);
+        
+        // Verify the result
+        User returnedUser = result.block(); // Block to get the result for the assertion
+        assertEquals(user, returnedUser); // Check if the returned user is as expected
     }
-}
