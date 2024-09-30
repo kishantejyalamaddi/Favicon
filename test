@@ -1,2 +1,42 @@
-java.lang.NullPointerException: Cannot invoke "com.tep.qtestwrapper.service.AuthConfig.getCredentials()" because "<local5>.authConfig" is null
 
+    @Mock
+    private AuthConfig authConfig; // Mock the AuthConfig
+
+    @Mock
+    private ServerWebExchange exchange; // Mock the ServerWebExchange
+
+    @InjectMocks
+    private YourService yourService; // Replace with your actual service class name
+
+    @BeforeEach
+    void setup() {
+        MockitoAnnotations.openMocks(this); // Initialize mocks
+    }
+
+    @Test
+    void testValidateClientIdAndRoleInUrl_HappyPath() {
+        // Given
+        String clientId = "client1";
+        String originalUrl = "/admin"; // The role in the URL
+        String expectedRole = "admin"; // The expected role for the user
+
+        User user = new User(clientId, expectedRole); // Mock User with matching role
+
+        // Mock AuthCredentials and its behavior
+        AuthCredentials credentials = mock(AuthCredentials.class);
+        when(authConfig.getCredentials()).thenReturn(credentials); // Mock the return of getCredentials
+        when(credentials.getUsers()).thenReturn(Arrays.asList(user)); // Mocking the list of users
+
+        // Use a spy and safely stub getRoleByClientId
+        YourService yourServiceSpy = spy(yourService);
+        doReturn(user).when(yourServiceSpy).getRoleByClientId(anyString(), any(AuthCredentials.class));
+
+        // When
+        Mono<User> result = yourServiceSpy.validateClientIdAndRoleInUrl(clientId, originalUrl, exchange);
+
+        // Then
+        StepVerifier.create(result)
+                .expectNext(user) // Expect the user to be returned
+                .verifyComplete(); // Verify that the Mono completes without errors
+    }
+}
