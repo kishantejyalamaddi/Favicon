@@ -1,25 +1,2 @@
-    private AuthenticationFilter authenticationFilter;
-    private AuthConfig authConfig;
-    private ApplicationProperties properties;
-    private ServerWebExchange exchange;
-    private DataBufferFactory dataBufferFactory;
 
-    @BeforeEach
-    public void setUp() {
-        authConfig = mock(AuthConfig.class);
-        properties = mock(ApplicationProperties.class);
-        authenticationFilter = new AuthenticationFilter(); // Initialize the filter
-        authenticationFilter.authConfig = authConfig;
-        authenticationFilter.properties = properties;
-
-        // Mock ServerWebExchange and its components
-        exchange = mock(ServerWebExchange.class);
-        ServerHttpRequest request = mock(ServerHttpRequest.class);
-        ServerHttpResponse response = mock(ServerHttpResponse.class);
-        
-        // Set up the request and response in the exchange mock
-        when(exchange.getRequest()).thenReturn(request);
-        when(exchange.getResponse()).thenReturn(response);
-
-        dataBufferFactory = new DefaultDataBufferFactory();
-    }
+java.lang.NullPointerException: Cannot invoke "org.springframework.http.HttpHeaders.getFirst(String)" because the return value of "org.springframework.http.server.reactive.ServerHttpRequest.getHeaders()" is null
