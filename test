@@ -1,4 +1,6 @@
- private AuthenticationFilter authenticationFilter;
+public class AuthenticationFilterTest {
+
+    private AuthenticationFilter authenticationFilter;
     private AuthConfig authConfig;
     private ApplicationProperties properties;
     private ServerWebExchange exchange;
