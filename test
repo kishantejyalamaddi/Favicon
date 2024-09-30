@@ -1,0 +1,4 @@
+java.lang.NullPointerException: Cannot invoke "org.springframework.http.server.reactive.ServerHttpResponse.setStatusCode(org.springframework.http.HttpStatusCode)" because "response" is null
+
+	at com.tep.qtestwrapper.filter.AuthenticationFilter.onError(AuthenticationFilter.java:300)
+	
