@@ -1,6 +1,15 @@
-java.lang.NullPointerException: Cannot invoke "org.springframework.web.server.ServerWebExchange.getRequest()" because "this.exchange" is null
+   @Test
+    void testApply_WhenAuthorizationTokenMissing_ShouldReturnUnauthorized() {
+        // Arrange
+        when(request.getHeaders()).thenReturn(new HttpHeaders());
 
-	at com.tep.qtestwrapper.tests.AuthenticationFilterTest.setup(AuthenticationFilterTest.java:66)
-	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
-	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
-	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+        // Act
+        Mono<Void> result = filter.apply(new AuthenticationFilter.Config()).filter(exchange, chain);
+
+        // Assert
+        StepVerifier.create(result)
+                .expectComplete()
+                .verify();
+
+        verify(response).setStatusCode(UNAUTHORIZED);
+    }
