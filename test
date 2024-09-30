@@ -1,2 +1,75 @@
+ private AuthenticationFilter authenticationFilter;
+    private AuthConfig authConfig;
+    private ApplicationProperties properties;
+    private ServerWebExchange exchange;
+    private DataBufferFactory dataBufferFactory;
 
-java.lang.NullPointerException: Cannot invoke "org.springframework.http.HttpHeaders.getFirst(String)" because the return value of "org.springframework.http.server.reactive.ServerHttpRequest.getHeaders()" is null
+    @BeforeEach
+    public void setUp() {
+        authConfig = mock(AuthConfig.class);
+        properties = mock(ApplicationProperties.class);
+        authenticationFilter = new AuthenticationFilter(); // Initialize the filter
+        authenticationFilter.authConfig = authConfig;
+        authenticationFilter.properties = properties;
+
+        // Mock ServerWebExchange and its components
+        exchange = mock(ServerWebExchange.class);
+        ServerHttpRequest request = mock(ServerHttpRequest.class);
+        ServerHttpResponse response = mock(ServerHttpResponse.class);
+        
+        // Set up the request and response in the exchange mock
+        when(exchange.getRequest()).thenReturn(request);
+        when(exchange.getResponse()).thenReturn(response);
+
+        dataBufferFactory = new DefaultDataBufferFactory();
+    }
+
+    @Test
+    public void testApply_HappyPath() {
+        // Prepare the test data
+        String clientId = "testClientId";
+        String authorizationToken = "Bearer testToken";
+        String originalUrl = "/admin/resource";
+
+        User user = new User();
+        user.setClientid(clientId);
+        user.setPassword("testPassword");
+        user.setRole("admin");
+
+        AuthCredentials authCredentials = new AuthCredentials();
+        authCredentials.setUsers(Collections.singletonList(user));
+
+        TokenPayload tokenPayload = new TokenPayload();
+        tokenPayload.setAud(clientId);
+
+        // Set up mocks
+        when(authConfig.getCredentials()).thenReturn(authCredentials);
+
+        // Mock HttpHeaders and the request
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.AUTHORIZATION, authorizationToken);
+        when(request.getHeaders()).thenReturn(headers);
+        when(request.getMethod()).thenReturn(HttpMethod.POST);
+        
+        // Mock the request body
+        DataBuffer dataBuffer = dataBufferFactory.allocateBuffer().write("requestBody".getBytes());
+        Flux<DataBuffer> bodyFlux = Flux.just(dataBuffer);
+        when(request.getBody()).thenReturn(bodyFlux);
+        
+        when(properties.getTargetHost()).thenReturn("http://target-host");
+
+        // Mocking other necessary methods
+        when(authenticationFilter.decodeToken(anyString(), eq(exchange))).thenReturn(Mono.just(tokenPayload));
+        when(authenticationFilter.validateClientIdAndRoleInUrl(anyString(), anyString(), eq(exchange))).thenReturn(Mono.just(user));
+        when(authenticationFilter.cacheService.getOrFetchToken(anyString(), anyString(), anyString(), anyString())).thenReturn(Mono.just("someToken"));
+
+        // Now invoke the filter method of the filter
+        GatewayFilter filter = authenticationFilter.apply(new AuthenticationFilter.Config());
+        Mono<Void> result = filter.filter(exchange, Mockito.mock(GatewayFilterChain.class)); // Correctly calling filter
+
+        // Execute the result
+        result.block();
+
+        // Add assertions here as needed
+    }
+}
