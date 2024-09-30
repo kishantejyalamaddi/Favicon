@@ -1,11 +1,32 @@
-Example of correct use of doNothing():
-    doNothing().
-    doThrow(new RuntimeException())
-    .when(mock).someVoidMethod();
-Above means:
-someVoidMethod() does nothing the 1st time but throws an exception the 2nd time is called
+    @Test
+    public void testApply_MissingAuthorizationHeader() {
+        // Mock ServerWebExchange, ServerHttpRequest, and ServerHttpResponse
+        ServerWebExchange exchange = mock(ServerWebExchange.class);
+        ServerHttpRequest request = mock(ServerHttpRequest.class);
+        ServerHttpResponse response = mock(ServerHttpResponse.class);
 
-	at com.tep.qtestwrapper.tests.AuthenticationFilterTest.testApply_MissingAuthorizationHeader(AuthenticationFilterTest.java:135)
-	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
-	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
-	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+        // Configure the mocks
+        when(exchange.getRequest()).thenReturn(request);
+        when(exchange.getResponse()).thenReturn(response);
+        when(request.getMethod()).thenReturn(HttpMethod.GET);
+
+        // Simulate missing Authorization header
+        when(request.getHeaders()).thenReturn(new HttpHeaders());
+
+        // Mock the void method setStatusCode with doNothing for the first call
+        doNothing().when(response).setStatusCode(any(HttpStatus.class));
+
+        // Initialize the authentication filter (replace with actual dependencies)
+        AuthenticationFilter authenticationFilter = new AuthenticationFilter(Mockito.mock(WebClient.Builder.class));
+
+        // Call the filter's apply method and pass the mock exchange
+        Mono<Void> result = authenticationFilter.apply(new AuthenticationFilter.Config()).filter(exchange, chain -> Mono.empty());
+
+        // Assert that the filter returns an error due to missing Authorization header
+        StepVerifier.create(result)
+                .expectErrorMatches(throwable -> throwable.getMessage().contains("Missing Authorization token"))
+                .verify();
+
+        // Verify the status code is set to 401 UNAUTHORIZED once
+        verify(response, times(1)).setStatusCode(HttpStatus.UNAUTHORIZED);
+    }
