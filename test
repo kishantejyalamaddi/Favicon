@@ -1,86 +1,34 @@
+    public Mono<User> validateClientIdAndRoleInUrl(String clientId, String originalUrl, ServerWebExchange exchange) {
+        logger.info("Validating token and role");
+        // Step 1: Extract the role from the URL
+        String[] urlParts = originalUrl.split("/");
+        if (urlParts.length < 2) {
+            return onError(exchange, "Invalid URL format" , HttpStatus.BAD_GATEWAY).then(Mono.empty());
+        }
+        String roleInUrl = urlParts[1];
 
-    @Mock
-    private AuthConfig authConfig;
+        // Step 2: Check if clientId exists in the credentials map
+        AuthCredentials credentials = authConfig.getCredentials();
+        boolean clientIdExists = credentials.getUsers().stream().anyMatch(key -> key.getClientid().equalsIgnoreCase(clientId));
 
-    @Mock
-    private CacheService cacheService;
+        if (!clientIdExists) {
+            return onError(exchange, "Client ID not found", HttpStatus.NOT_FOUND)
+                    .then(Mono.empty());
+        }
 
-    @Mock
-    private ApplicationProperties properties;
+        // Find the role associated with the clientId
+        User user = getRoleByClientId(clientId, authConfig.getCredentials());
 
-    @Mock
-    private WebClient webClient;
-
-    @Mock
-    private ServerWebExchange exchange;
-
-    @Mock
-    private ServerHttpRequest request;
-
-    @Mock
-    private ServerHttpResponse response;
-
-    @Mock
-    private GatewayFilterChain chain;
-
-    @Mock
-    private Route route;
-
-    @InjectMocks
-    private AuthenticationFilter filter;
-
-    @BeforeEach
-    void setup() {
-        MockitoAnnotations.openMocks(this);
-
-        // Mock the behavior of exchange.getRequest() and exchange.getResponse()
-        when(exchange.getRequest()).thenReturn(request);
-        when(exchange.getResponse()).thenReturn(response);
-
-        // Mock the Route and its metadata
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("method", "GET,POST");  // Define the allowed methods here
-        when(route.getMetadata()).thenReturn(metadata);
-
-        // Add the route to the exchange attributes
-        when(exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR)).thenReturn(route);
-    }
-
-    @Test
-    void testApply_WhenAuthorizationTokenMissing_ShouldReturnUnauthorized() {
-        // Arrange
-        when(request.getHeaders()).thenReturn(new HttpHeaders());
-
-        // Act
-        Mono<Void> result = filter.apply(new AuthenticationFilter.Config()).filter(exchange, chain);
-
-        // Assert
-        StepVerifier.create(result)
-                .expectComplete()
-                .verify();
-
-        verify(response).setStatusCode(UNAUTHORIZED);
-    }
-
-    @Test
-    void testApply_WhenTokenDecodedAndClientIdMissing_ShouldReturnUnauthorized() {
-        // Arrange
-        HttpHeaders headers = new HttpHeaders();
-        headers.add(HttpHeaders.AUTHORIZATION, "Bearer some.invalid.token");
-        when(request.getHeaders()).thenReturn(headers);
-
-        // Mock the token decoding process
-        TokenPayload tokenPayload = new TokenPayload();
-        tokenPayload.setAud(null);
-        when(filter.decodeToken(any(), any())).thenReturn(Mono.just(tokenPayload));
-
-        // Act
-        Mono<Void> result = filter.apply(new AuthenticationFilter.Config()).filter(exchange, chain);
-
-        // Assert
-        StepVerifier.create(result)
-                .expectComplete()
-                .verify();
-
-        verify(response).setStatusCode(UNAUTHORIZED);
+        if (user == null) {
+            return onError(exchange, "Role is not mapped for clientId: " + clientId, HttpStatus.NOT_FOUND).then(Mono.empty());
+        }
+        String userRole = user.getRole();
+        if (userRole == null) {
+            return onError(exchange, "Role is not mapped for clientId: " + clientId, HttpStatus.NOT_FOUND).then(Mono.empty());
+        }
+        if (!userRole.equalsIgnoreCase(roleInUrl)) {
+            return onError(exchange, "Role is not matched. Access denied", HttpStatus.FORBIDDEN).then(Mono.empty());
+        }
+        logger.info("ClientID and Role is validated successfully: clientID:- {} , Role:- {}", clientId, user.getRole());
+        return Mono.just(user);
     }
