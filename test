@@ -1,60 +1,158 @@
-@Test
-public void testApply_HappyPath() {
-    // Prepare the test data
-    String clientId = "testClientId";
-    String authorizationToken = "Bearer testToken";
-    String originalUrl = "/admin/resource";
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 
-    // Create a mock user
-    User user = new User();
-    user.setClientid(clientId);
-    user.setPassword("testPassword");
-    user.setRole("admin");
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+import org.springframework.cloud.gateway.filter.GatewayFilterChain;
+import org.springframework.cloud.gateway.route.Route;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
 
-    // Create mock credentials
-    AuthCredentials authCredentials = new AuthCredentials();
-    authCredentials.setUsers(Collections.singletonList(user));
+@Component
+public class AuthenticationFilterTest {
 
-    // Create a mock token payload
-    TokenPayload tokenPayload = new TokenPayload();
-    tokenPayload.setAud(clientId);
+    @InjectMocks
+    private AuthenticationFilter authenticationFilter;
 
-    // Set up mocks
-    when(authConfig.getCredentials()).thenReturn(authCredentials);
+    @Mock
+    private CacheService cacheService;
 
-    // Mock HttpHeaders and the request
-    HttpHeaders headers = new HttpHeaders();
-    headers.set(HttpHeaders.AUTHORIZATION, authorizationToken);
-    when(request.getHeaders()).thenReturn(headers);
-    when(request.getMethod()).thenReturn(HttpMethod.POST);
-    
-    // Mocking the request body
-    DataBuffer dataBuffer = dataBufferFactory.allocateBuffer().write("requestBody".getBytes());
-    Flux<DataBuffer> bodyFlux = Flux.just(dataBuffer);
-    when(request.getBody()).thenReturn(bodyFlux);
-    
-    when(properties.getTargetHost()).thenReturn("http://target-host");
+    @Mock
+    private AuthConfig authConfig;
 
-    // Mock the token decoding logic
-    // Assume the following structure for a simple token for testing
-    String base64Header = Base64.encodeBase64String("{\"alg\":\"none\",\"typ\":\"JWT\"}".getBytes(StandardCharsets.UTF_8));
-    String base64Payload = Base64.encodeBase64String("{\"aud\":\"" + clientId + "\"}".getBytes(StandardCharsets.UTF_8));
-    String simpleToken = base64Header + "." + base64Payload + ".";
-    
-    // Change the authorization token to the correct format
-    when(request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION)).thenReturn("Bearer " + simpleToken);
+    @Mock
+    private ApplicationProperties properties;
 
-    // Mock additional methods as necessary
-    when(authenticationFilter.decodeToken(anyString(), eq(exchange))).thenReturn(Mono.just(tokenPayload));
-    when(authenticationFilter.validateClientIdAndRoleInUrl(anyString(), anyString(), eq(exchange))).thenReturn(Mono.just(user));
-    when(authenticationFilter.cacheService.getOrFetchToken(anyString(), anyString(), anyString(), anyString())).thenReturn(Mono.just("someToken"));
+    @Mock
+    private ServerWebExchange exchange;
 
-    // Now invoke the filter method of the filter
-    GatewayFilter filter = authenticationFilter.apply(new AuthenticationFilter.Config());
-    Mono<Void> result = filter.filter(exchange, Mockito.mock(GatewayFilterChain.class));
+    @Mock
+    private GatewayFilterChain chain;
 
-    // Execute the result
-    result.block();
+    @Mock
+    private Route route;
 
-    // Add assertions here as needed
+    @Mock
+    private WebClient.RequestBodySpec requestBodySpec;
+
+    @Mock
+    private WebClient.ResponseSpec responseSpec;
+
+    @BeforeEach
+    public void setUp() {
+        MockitoAnnotations.openMocks(this);
+    }
+
+    @Test
+    public void testApply_WithAllowedMethod_ShouldProceed() {
+        // Arrange
+        when(exchange.getRequest().getMethod()).thenReturn(HttpMethod.GET);
+        when(exchange.getRequest().getHeaders()).thenReturn(new HttpHeaders());
+        when(route.getMetadata()).thenReturn(Map.of("method", "GET,POST"));
+        when(exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR)).thenReturn(route);
+        
+        // Mock chain.filter call to return a Mono<Void>
+        when(chain.filter(exchange)).thenReturn(Mono.empty());
+
+        // Act
+        Mono<Void> result = authenticationFilter.apply(new AuthenticationFilter.Config()).apply(exchange, chain);
+
+        // Assert
+        result.subscribe();
+        verify(chain, times(1)).filter(exchange);
+    }
+
+    @Test
+    public void testApply_WithDisallowedMethod_ShouldReturnMethodNotAllowed() {
+        // Arrange
+        when(exchange.getRequest().getMethod()).thenReturn(HttpMethod.PUT);
+        when(route.getMetadata()).thenReturn(Map.of("method", "GET,POST"));
+        when(exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR)).thenReturn(route);
+        
+        // Act
+        Mono<Void> result = authenticationFilter.apply(new AuthenticationFilter.Config()).apply(exchange, chain);
+
+        // Assert
+        result.subscribe();
+        verify(chain, never()).filter(exchange);
+        verify(exchange.getResponse(), times(1)).setStatusCode(HttpStatus.METHOD_NOT_ALLOWED);
+    }
+
+    @Test
+    public void testApply_WithMissingAuthorizationToken_ShouldReturnUnauthorized() {
+        // Arrange
+        when(exchange.getRequest().getMethod()).thenReturn(HttpMethod.GET);
+        when(route.getMetadata()).thenReturn(Map.of("method", "GET,POST"));
+        when(exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR)).thenReturn(route);
+        when(exchange.getRequest().getHeaders()).thenReturn(new HttpHeaders());
+
+        // Act
+        Mono<Void> result = authenticationFilter.apply(new AuthenticationFilter.Config()).apply(exchange, chain);
+
+        // Assert
+        result.subscribe();
+        verify(chain, never()).filter(exchange);
+        verify(exchange.getResponse(), times(1)).setStatusCode(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    public void testApply_WithValidToken_ShouldFetchToken() {
+        // Arrange
+        String validToken = "Bearer valid_token";
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.AUTHORIZATION, validToken);
+        when(exchange.getRequest().getMethod()).thenReturn(HttpMethod.GET);
+        when(exchange.getRequest().getHeaders()).thenReturn(headers);
+        when(route.getMetadata()).thenReturn(Map.of("method", "GET,POST"));
+        when(exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR)).thenReturn(route);
+        when(cacheService.getOrFetchToken(any(), any(), any(), any())).thenReturn(Mono.just("fetched_token"));
+
+        // Mock chain.filter call to return a Mono<Void>
+        when(chain.filter(exchange)).thenReturn(Mono.empty());
+
+        // Act
+        Mono<Void> result = authenticationFilter.apply(new AuthenticationFilter.Config()).apply(exchange, chain);
+
+        // Assert
+        result.subscribe();
+        verify(chain, times(1)).filter(exchange);
+    }
+
+    @Test
+    public void testApply_WithInvalidClientId_ShouldReturnNotFound() {
+        // Arrange
+        String invalidToken = "Bearer invalid_token";
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.AUTHORIZATION, invalidToken);
+        when(exchange.getRequest().getMethod()).thenReturn(HttpMethod.GET);
+        when(exchange.getRequest().getHeaders()).thenReturn(headers);
+        when(route.getMetadata()).thenReturn(Map.of("method", "GET,POST"));
+        when(exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR)).thenReturn(route);
+
+        // Simulate a failure in validating the clientId
+        when(cacheService.getOrFetchToken(any(), any(), any(), any())).thenReturn(Mono.error(new RuntimeException("Client ID not found")));
+
+        // Act
+        Mono<Void> result = authenticationFilter.apply(new AuthenticationFilter.Config()).apply(exchange, chain);
+
+        // Assert
+        result.subscribe();
+        verify(chain, never()).filter(exchange);
+        verify(exchange.getResponse(), times(1)).setStatusCode(HttpStatus.NOT_FOUND);
+    }
 }
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-test</artifactId>
+    <scope>test</scope>
+</dependency>
