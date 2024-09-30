@@ -1,100 +1,60 @@
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
-import org.springframework.cloud.gateway.filter.GatewayFilter;
-import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
-import org.springframework.core.io.buffer.DataBuffer;
-import org.springframework.core.io.buffer.DataBufferFactory;
-import org.springframework.core.io.buffer.DefaultDataBufferFactory;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.web.server.ServerHttpRequest;
-import org.springframework.web.server.ServerHttpResponse;
-import org.springframework.web.server.ServerWebExchange;
-import org.springframework.web.server.ServerWebExchangeDecorator;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
+@Test
+public void testApply_HappyPath() {
+    // Prepare the test data
+    String clientId = "testClientId";
+    String authorizationToken = "Bearer testToken";
+    String originalUrl = "/admin/resource";
 
-import java.util.Collections;
+    // Create a mock user
+    User user = new User();
+    user.setClientid(clientId);
+    user.setPassword("testPassword");
+    user.setRole("admin");
 
-import static org.mockito.Mockito.*;
+    // Create mock credentials
+    AuthCredentials authCredentials = new AuthCredentials();
+    authCredentials.setUsers(Collections.singletonList(user));
 
-public class AuthenticationFilterTest {
+    // Create a mock token payload
+    TokenPayload tokenPayload = new TokenPayload();
+    tokenPayload.setAud(clientId);
 
-    private AuthenticationFilter authenticationFilter;
-    private AuthConfig authConfig;
-    private ApplicationProperties properties;
-    private ServerWebExchange exchange;
-    private ServerHttpRequest request; // Declare request as a field
-    private ServerHttpResponse response;
-    private DataBufferFactory dataBufferFactory;
+    // Set up mocks
+    when(authConfig.getCredentials()).thenReturn(authCredentials);
 
-    @BeforeEach
-    public void setUp() {
-        authConfig = mock(AuthConfig.class);
-        properties = mock(ApplicationProperties.class);
-        authenticationFilter = new AuthenticationFilter(); // Initialize the filter
-        authenticationFilter.authConfig = authConfig;
-        authenticationFilter.properties = properties;
+    // Mock HttpHeaders and the request
+    HttpHeaders headers = new HttpHeaders();
+    headers.set(HttpHeaders.AUTHORIZATION, authorizationToken);
+    when(request.getHeaders()).thenReturn(headers);
+    when(request.getMethod()).thenReturn(HttpMethod.POST);
+    
+    // Mocking the request body
+    DataBuffer dataBuffer = dataBufferFactory.allocateBuffer().write("requestBody".getBytes());
+    Flux<DataBuffer> bodyFlux = Flux.just(dataBuffer);
+    when(request.getBody()).thenReturn(bodyFlux);
+    
+    when(properties.getTargetHost()).thenReturn("http://target-host");
 
-        // Mock ServerWebExchange and its components
-        exchange = mock(ServerWebExchange.class);
-        request = mock(ServerHttpRequest.class); // Initialize the request mock
-        response = mock(ServerHttpResponse.class);
+    // Mock the token decoding logic
+    // Assume the following structure for a simple token for testing
+    String base64Header = Base64.encodeBase64String("{\"alg\":\"none\",\"typ\":\"JWT\"}".getBytes(StandardCharsets.UTF_8));
+    String base64Payload = Base64.encodeBase64String("{\"aud\":\"" + clientId + "\"}".getBytes(StandardCharsets.UTF_8));
+    String simpleToken = base64Header + "." + base64Payload + ".";
+    
+    // Change the authorization token to the correct format
+    when(request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION)).thenReturn("Bearer " + simpleToken);
 
-        // Set up the request and response in the exchange mock
-        when(exchange.getRequest()).thenReturn(request);
-        when(exchange.getResponse()).thenReturn(response);
+    // Mock additional methods as necessary
+    when(authenticationFilter.decodeToken(anyString(), eq(exchange))).thenReturn(Mono.just(tokenPayload));
+    when(authenticationFilter.validateClientIdAndRoleInUrl(anyString(), anyString(), eq(exchange))).thenReturn(Mono.just(user));
+    when(authenticationFilter.cacheService.getOrFetchToken(anyString(), anyString(), anyString(), anyString())).thenReturn(Mono.just("someToken"));
 
-        dataBufferFactory = new DefaultDataBufferFactory();
-    }
+    // Now invoke the filter method of the filter
+    GatewayFilter filter = authenticationFilter.apply(new AuthenticationFilter.Config());
+    Mono<Void> result = filter.filter(exchange, Mockito.mock(GatewayFilterChain.class));
 
-    @Test
-    public void testApply_HappyPath() {
-        // Prepare the test data
-        String clientId = "testClientId";
-        String authorizationToken = "Bearer testToken";
-        String originalUrl = "/admin/resource";
+    // Execute the result
+    result.block();
 
-        User user = new User();
-        user.setClientid(clientId);
-        user.setPassword("testPassword");
-        user.setRole("admin");
-
-        AuthCredentials authCredentials = new AuthCredentials();
-        authCredentials.setUsers(Collections.singletonList(user));
-
-        TokenPayload tokenPayload = new TokenPayload();
-        tokenPayload.setAud(clientId);
-
-        // Set up mocks
-        when(authConfig.getCredentials()).thenReturn(authCredentials);
-
-        // Mock HttpHeaders and the request
-        HttpHeaders headers = new HttpHeaders();
-        headers.set(HttpHeaders.AUTHORIZATION, authorizationToken);
-        when(request.getHeaders()).thenReturn(headers);
-        when(request.getMethod()).thenReturn(HttpMethod.POST);
-        
-        // Mock the request body
-        DataBuffer dataBuffer = dataBufferFactory.allocateBuffer().write("requestBody".getBytes());
-        Flux<DataBuffer> bodyFlux = Flux.just(dataBuffer);
-        when(request.getBody()).thenReturn(bodyFlux);
-        
-        when(properties.getTargetHost()).thenReturn("http://target-host");
-
-        // Mocking other necessary methods
-        when(authenticationFilter.decodeToken(anyString(), eq(exchange))).thenReturn(Mono.just(tokenPayload));
-        when(authenticationFilter.validateClientIdAndRoleInUrl(anyString(), anyString(), eq(exchange))).thenReturn(Mono.just(user));
-        when(authenticationFilter.cacheService.getOrFetchToken(anyString(), anyString(), anyString(), anyString())).thenReturn(Mono.just("someToken"));
-
-        // Now invoke the filter method of the filter
-        GatewayFilter filter = authenticationFilter.apply(new AuthenticationFilter.Config());
-        Mono<Void> result = filter.filter(exchange, Mockito.mock(GatewayFilterChain.class)); // Correctly calling filter
-
-        // Execute the result
-        result.block();
-
-        // Add assertions here as needed
-    }
+    // Add assertions here as needed
 }
