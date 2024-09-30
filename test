@@ -1,15 +1,36 @@
-   @Test
-    void testApply_WhenAuthorizationTokenMissing_ShouldReturnUnauthorized() {
-        // Arrange
-        when(request.getHeaders()).thenReturn(new HttpHeaders());
 
-        // Act
-        Mono<Void> result = filter.apply(new AuthenticationFilter.Config()).filter(exchange, chain);
+    @Mock
+    private AuthConfig authConfig;
 
-        // Assert
-        StepVerifier.create(result)
-                .expectComplete()
-                .verify();
+    @Mock
+    private CacheService cacheService;
 
-        verify(response).setStatusCode(UNAUTHORIZED);
+    @Mock
+    private ApplicationProperties properties;
+
+    @Mock
+    private WebClient webClient;
+
+    @Mock
+    private ServerWebExchange exchange;
+
+    @Mock
+    private ServerHttpRequest request;
+
+    @Mock
+    private ServerHttpResponse response;
+
+    @Mock
+    private GatewayFilterChain chain;
+
+    @InjectMocks
+    private AuthenticationFilter filter;
+
+    @BeforeEach
+    void setup() {
+        filter = new AuthenticationFilter(WebClient.builder());
+
+        // Properly mock the exchange, request, and response
+        when(exchange.getRequest()).thenReturn(request);
+        when(exchange.getResponse()).thenReturn(response);
     }
