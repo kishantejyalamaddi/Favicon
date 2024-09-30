@@ -1,4 +1,28 @@
-java.lang.NullPointerException: Cannot invoke "org.springframework.http.server.reactive.ServerHttpResponse.setStatusCode(org.springframework.http.HttpStatusCode)" because "response" is null
+@Test
+public void testApply_MissingAuthorizationHeader() {
+    ServerWebExchange exchange = mock(ServerWebExchange.class);
+    ServerHttpRequest request = mock(ServerHttpRequest.class);
+    ServerHttpResponse response = mock(ServerHttpResponse.class);
+    Route route = mock(Route.class);
 
-	at com.tep.qtestwrapper.filter.AuthenticationFilter.onError(AuthenticationFilter.java:300)
-	
+    when(exchange.getRequest()).thenReturn(request);
+    when(exchange.getResponse()).thenReturn(response); // Mock response here
+    when(exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR)).thenReturn(route);
+    when(request.getMethod()).thenReturn(HttpMethod.GET);
+    when(route.getMetadata()).thenReturn(Map.of("method", "GET"));
+
+    // Simulate missing Authorization header
+    when(request.getHeaders()).thenReturn(new HttpHeaders());
+
+    // Mock setting status code in response
+    when(response.setStatusCode(any(HttpStatus.class))).thenReturn(null);
+
+    Mono<Void> result = authenticationFilter.apply(new AuthenticationFilter.Config()).filter(exchange, chain -> Mono.empty());
+
+    StepVerifier.create(result)
+            .expectErrorMatches(throwable -> throwable.getMessage().contains("Missing Authorization token"))
+            .verify();
+
+    verify(request, times(1)).getHeaders();
+    verify(response, times(1)).setStatusCode(HttpStatus.UNAUTHORIZED); // Verify status code is set
+}
