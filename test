@@ -1,8 +1,10 @@
+public class AuthenticationFilterTest {
 
     private AuthenticationFilter authenticationFilter;
     private AuthConfig authConfig;
     private ApplicationProperties properties;
     private ServerWebExchange exchange;
+    private DataBufferFactory dataBufferFactory;
 
     @BeforeEach
     public void setUp() {
@@ -14,6 +16,7 @@
 
         // Mocking ServerWebExchange and its components
         exchange = mock(ServerWebExchange.class);
+        dataBufferFactory = new DefaultDataBufferFactory(); // Create a DataBufferFactory instance
     }
 
     @Test
@@ -39,7 +42,12 @@
         when(exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION)).thenReturn(authorizationToken);
         when(exchange.getRequest().getMethod()).thenReturn(HttpMethod.POST);
         when(exchange.getRequest().getPath()).thenReturn(mock(Path.class));
-        when(exchange.getRequest().getBody()).thenReturn(Mono.just("requestBody"));
+        
+        // Mocking the request body to return a Flux<DataBuffer>
+        DataBuffer dataBuffer = dataBufferFactory.allocateBuffer().write("requestBody".getBytes());
+        Flux<DataBuffer> bodyFlux = Flux.just(dataBuffer);
+        when(exchange.getRequest().getBody()).thenReturn(bodyFlux);
+        
         when(properties.getTargetHost()).thenReturn("http://target-host");
 
         // Mock the decodeToken method
