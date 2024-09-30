@@ -1,7 +1,86 @@
-java.lang.NullPointerException
-	at java.base/java.util.Objects.requireNonNull(Objects.java:233)
-	at com.tep.qtestwrapper.filter.AuthenticationFilter.lambda$apply$13(AuthenticationFilter.java:74)
-	at com.tep.qtestwrapper.tests.AuthenticationFilterTest.testApply_WhenAuthorizationTokenMissing_ShouldReturnUnauthorized(AuthenticationFilterTest.java:71)
-	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
-	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
-	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+
+    @Mock
+    private AuthConfig authConfig;
+
+    @Mock
+    private CacheService cacheService;
+
+    @Mock
+    private ApplicationProperties properties;
+
+    @Mock
+    private WebClient webClient;
+
+    @Mock
+    private ServerWebExchange exchange;
+
+    @Mock
+    private ServerHttpRequest request;
+
+    @Mock
+    private ServerHttpResponse response;
+
+    @Mock
+    private GatewayFilterChain chain;
+
+    @Mock
+    private Route route;
+
+    @InjectMocks
+    private AuthenticationFilter filter;
+
+    @BeforeEach
+    void setup() {
+        MockitoAnnotations.openMocks(this);
+
+        // Mock the behavior of exchange.getRequest() and exchange.getResponse()
+        when(exchange.getRequest()).thenReturn(request);
+        when(exchange.getResponse()).thenReturn(response);
+
+        // Mock the Route and its metadata
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("method", "GET,POST");  // Define the allowed methods here
+        when(route.getMetadata()).thenReturn(metadata);
+
+        // Add the route to the exchange attributes
+        when(exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR)).thenReturn(route);
+    }
+
+    @Test
+    void testApply_WhenAuthorizationTokenMissing_ShouldReturnUnauthorized() {
+        // Arrange
+        when(request.getHeaders()).thenReturn(new HttpHeaders());
+
+        // Act
+        Mono<Void> result = filter.apply(new AuthenticationFilter.Config()).filter(exchange, chain);
+
+        // Assert
+        StepVerifier.create(result)
+                .expectComplete()
+                .verify();
+
+        verify(response).setStatusCode(UNAUTHORIZED);
+    }
+
+    @Test
+    void testApply_WhenTokenDecodedAndClientIdMissing_ShouldReturnUnauthorized() {
+        // Arrange
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.AUTHORIZATION, "Bearer some.invalid.token");
+        when(request.getHeaders()).thenReturn(headers);
+
+        // Mock the token decoding process
+        TokenPayload tokenPayload = new TokenPayload();
+        tokenPayload.setAud(null);
+        when(filter.decodeToken(any(), any())).thenReturn(Mono.just(tokenPayload));
+
+        // Act
+        Mono<Void> result = filter.apply(new AuthenticationFilter.Config()).filter(exchange, chain);
+
+        // Assert
+        StepVerifier.create(result)
+                .expectComplete()
+                .verify();
+
+        verify(response).setStatusCode(UNAUTHORIZED);
+    }
