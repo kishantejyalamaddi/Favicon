@@ -10,13 +10,13 @@ public class AuthenticationFilterTest {
     public void setUp() {
         authConfig = mock(AuthConfig.class);
         properties = mock(ApplicationProperties.class);
-        authenticationFilter = new AuthenticationFilter(null); // pass a WebClient.Builder if needed
+        authenticationFilter = new AuthenticationFilter(); // Initialize the filter
         authenticationFilter.authConfig = authConfig;
         authenticationFilter.properties = properties;
 
-        // Mocking ServerWebExchange and its components
+        // Mock ServerWebExchange and other components
         exchange = mock(ServerWebExchange.class);
-        dataBufferFactory = new DefaultDataBufferFactory(); // Create a DataBufferFactory instance
+        dataBufferFactory = new DefaultDataBufferFactory();
     }
 
     @Test
@@ -41,34 +41,26 @@ public class AuthenticationFilterTest {
         when(authConfig.getCredentials()).thenReturn(authCredentials);
         when(exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION)).thenReturn(authorizationToken);
         when(exchange.getRequest().getMethod()).thenReturn(HttpMethod.POST);
-        when(exchange.getRequest().getPath()).thenReturn(mock(Path.class));
         
-        // Mocking the request body to return a Flux<DataBuffer>
+        // Mock the request body
         DataBuffer dataBuffer = dataBufferFactory.allocateBuffer().write("requestBody".getBytes());
         Flux<DataBuffer> bodyFlux = Flux.just(dataBuffer);
         when(exchange.getRequest().getBody()).thenReturn(bodyFlux);
         
         when(properties.getTargetHost()).thenReturn("http://target-host");
 
-        // Mock the decodeToken method
-        when(authenticationFilter.decodeToken(any(String.class), eq(exchange)))
-            .thenReturn(Mono.just(tokenPayload));
+        // Mocking other necessary methods
+        when(authenticationFilter.decodeToken(anyString(), eq(exchange))).thenReturn(Mono.just(tokenPayload));
+        when(authenticationFilter.validateClientIdAndRoleInUrl(anyString(), anyString(), eq(exchange))).thenReturn(Mono.just(user));
+        when(authenticationFilter.cacheService.getOrFetchToken(anyString(), anyString(), anyString(), anyString())).thenReturn(Mono.just("someToken"));
 
-        // Mock the validateClientIdAndRoleInUrl method
-        when(authenticationFilter.validateClientIdAndRoleInUrl(any(String.class), any(String.class), eq(exchange)))
-            .thenReturn(Mono.just(user));
+        // Now invoke the apply method of the filter
+        GatewayFilter filter = authenticationFilter.apply(new AuthenticationFilter.Config());
+        Mono<Void> result = filter.apply(exchange, Mockito.mock(GatewayFilterChain.class)); // Mocking GatewayFilterChain
 
-        // Mock the cacheService method
-        when(authenticationFilter.cacheService.getOrFetchToken(anyString(), anyString(), anyString(), anyString()))
-            .thenReturn(Mono.just("someToken"));
+        // Execute the result
+        result.block();
 
-        // Call the method under test
-        Mono<Void> result = authenticationFilter.apply(new AuthenticationFilter.Config()).apply(exchange, chain);
-
-        // Verify the result
-        result.block(); // Block to execute the Mono
-
-        // Here, you can add more assertions based on the expected behavior
-        // For example, checking if the response status was set correctly, etc.
+        // Add assertions here as needed
     }
 }
