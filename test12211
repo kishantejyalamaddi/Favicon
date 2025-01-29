@@ -1,11 +1,23 @@
-Create a new api for generating psim. 
+We need to create a new API that generates a 19-digit ICC ID using the Luhn algorithm based on the provided input. The API will receive the following parameters from the UI:
 
+brandId: The brand identifier
+emailId: The email address of the user
+environment: The environment (e.g., QLAB01, QLAB02, etc.)
+count: The number of ICC IDs to generate
+The process for the API should be as follows:
 
+Input Validation:
+The API should accept the input parameters, validate them, and handle any missing or invalid inputs appropriately.
 
+ICC ID Generation:
+Using the Luhn algorithm, generate the required number of 19-digit ICC IDs based on the count input parameter.
 
-Input request from UI would be brandId , emailId, environment and count. 
+ICCID and IMSI Check:
+For each generated ICC ID, check if it already exists in any of the environments (QLAB01, QLAB02, QLAB03, QLAB06, QLAB07, PLAB01).
+If the ICC ID or associated IMSI already exists in any of these environments, the API should skip inserting it.
 
+Database Insertion:
+If the ICC ID is not found in any of the environments, insert it into the serial_item_inv table in the database.
 
-
-
-so, based on the count and environemnt using Luhn alogorithm generated 19 digit ICC ID. check that icc id and IMSI is present in any other environments like QLAB01, QLAB02, QLAB03, QLAB06, QLAB07, PLAB01.  if no records found then insert into serial_item_inv table. 
+Response:
+The API should return a success message with the list of generated ICC IDs, or an error message in case of validation or database issues.
