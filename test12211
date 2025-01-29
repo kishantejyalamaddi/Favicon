@@ -1,0 +1,11 @@
+Create a new api for generating psim. 
+
+
+
+
+Input request from UI would be brandId , emailId, environment and count. 
+
+
+
+
+so, based on the count and environemnt using Luhn alogorithm generated 19 digit ICC ID. check that icc id and IMSI is present in any other environments like QLAB01, QLAB02, QLAB03, QLAB06, QLAB07, PLAB01.  if no records found then insert into serial_item_inv table. 
