@@ -1,36 +1,31 @@
- // Data holder for processed items
-        SimGenerationServiceIMPL.DataHolder<List<LoadEsimExcelInputDTO>> loadEsimExcelInputDTODataHolder = new SimGenerationServiceIMPL.DataHolder<>();
-        
-        // Prepare the list of DTOs
-        List<LoadEsimExcelInputDTO> listOfDTO = uniqueSimDetailsDTO.stream()
-                .map(i -> {
-                    LoadEsimExcelInputDTO dto = new LoadEsimExcelInputDTO();
-                    dto.setSerialNumber(i.getSimId());
-                    dto.setImsi(i.getImsiId());
-                    return dto;
-                })
-                .collect(Collectors.toList());
+ private String simId;
+    private String imsiId;
 
-        // Check and insert the data
-        loadESimData.checkAndInsert(listOfDTO, env, brandId, true, loadEsimExcelInputDTODataHolder::setData);
+    public SimDetails(String simId, String imsiId) {
+        this.simId = simId;
+        this.imsiId = imsiId;
+    }
 
-        // If we have some data to remove from uniqueSimDetailsDTO
-        List<LoadEsimExcelInputDTO> dataToRemove = loadEsimExcelInputDTODataHolder.getData();
-        if (!dataToRemove.isEmpty()) {
-            Set<String> serialNumbersToRemove = dataToRemove.stream()
-                    .map(LoadEsimExcelInputDTO::getSerialNumber)
-                    .collect(Collectors.toSet());
-            Set<String> imsiToRemove = dataToRemove.stream()
-                    .map(LoadEsimExcelInputDTO::getImsi)
-                    .collect(Collectors.toSet());
+    public String getSimId() {
+        return simId;
+    }
 
-            // Use iterator to safely remove items from uniqueSimDetailsDTO
-            Iterator<SimDetailsDTO> iterator = uniqueSimDetailsDTO.iterator();
-            while (iterator.hasNext()) {
-                SimDetailsDTO dto = iterator.next();
-                if (serialNumbersToRemove.contains(dto.getSimId()) || imsiToRemove.contains(dto.getImsiId())) {
-                    iterator.remove();
-                }
-            }
-        }
+    public void setSimId(String simId) {
+        this.simId = simId;
+    }
+
+    public String getImsiId() {
+        return imsiId;
+    }
+
+    public void setImsiId(String imsiId) {
+        this.imsiId = imsiId;
+    }
+
+    @Override
+    public String toString() {
+        return "SimDetails{" +
+                "simId='" + simId + '\'' +
+                ", imsiId='" + imsiId + '\'' +
+                '}';
     }
