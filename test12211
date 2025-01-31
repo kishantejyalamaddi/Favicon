@@ -1,23 +1,23 @@
-We need to create a new API that generates a 19-digit ICC ID using the Luhn algorithm based on the provided input. The API will receive the following parameters from the UI:
+        SimGenerationServiceIMPL.DataHolder<List<LoadEsimExcelInputDTO>> loadEsimExcelInputDTODataHolder = new SimGenerationServiceIMPL.DataHolder<>();
+                List<LoadEsimExcelInputDTO> listOfDTO =  new ArrayList<>();
+                uniqueSimDetailsDTO.forEach(i -> {
+                    LoadEsimExcelInputDTO dto = new LoadEsimExcelInputDTO();
+                    dto.setSerialNumber(i.getSimId());
+                    dto.setImsi(i.getImsiId());
+                    listOfDTO.add(dto);
+                });
 
-brandId: The brand identifier
-emailId: The email address of the user
-environment: The environment (e.g., QLAB01, QLAB02, etc.)
-count: The number of ICC IDs to generate
-The process for the API should be as follows:
+                loadESimData.checkAndInsert(listOfDTO, env, brandId, true, loadEsimExcelInputDTODataHolder::setData);
 
-Input Validation:
-The API should accept the input parameters, validate them, and handle any missing or invalid inputs appropriately.
-
-ICC ID Generation:
-Using the Luhn algorithm, generate the required number of 19-digit ICC IDs based on the count input parameter.
-
-ICCID and IMSI Check:
-For each generated ICC ID, check if it already exists in any of the environments (QLAB01, QLAB02, QLAB03, QLAB06, QLAB07, PLAB01).
-If the ICC ID or associated IMSI already exists in any of these environments, the API should skip inserting it.
-
-Database Insertion:
-If the ICC ID is not found in any of the environments, insert it into the serial_item_inv table in the database.
-
-Response:
-The API should return a success message with the list of generated ICC IDs, or an error message in case of validation or database issues.
+                if(!loadEsimExcelInputDTODataHolder.getData().isEmpty()) {
+                    loadEsimExcelInputDTODataHolder.getData().forEach(i -> {
+                        uniqueSimDetailsDTO.forEach(k -> {
+                            if(k.getSimId().equalsIgnoreCase(i.getSerialNumber())) {
+                                uniqueSimDetailsDTO.remove(k);
+                            }
+                            if(k.getImsiId().equalsIgnoreCase(i.getImsi())) {
+                                uniqueSimDetailsDTO.remove(k);
+                            }
+                        });
+                    });
+                }
