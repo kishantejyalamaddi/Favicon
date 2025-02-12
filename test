@@ -1,37 +1,23 @@
-import java.io.*;
-import java.nio.file.*;
-import java.util.*;
-
-public class FileProcessor {
-
-    public static void main(String[] args) {
-        // Specify input and output file paths
-        String inputFilePath = "input.txt"; // Path to the input file
-        String outputFilePath = "output.txt"; // Path to the output file
-
-        try {
-            // Read lines from the input file
-            List<String> lines = Files.readAllLines(Paths.get(inputFilePath));
-            List<String> processedLines = new ArrayList<>();
-
-            // Process each line
-            for (String line : lines) {
-                // Split line by whitespace or any other delimiter
-                String[] values = line.split("\\s+");
-                
-                // Add single quotes around each value and join them with commas
-                String result = "'" + String.join("','", values) + "'";
-                
-                // Add the processed result to the list
-                processedLines.add(result);
+// Read input file
+            BufferedReader reader = new BufferedReader(new FileReader("input.txt"));
+            // Write output to file
+            BufferedWriter writer = new BufferedWriter(new FileWriter("output.txt"));
+            
+            String line;
+            while ((line = reader.readLine()) != null) {
+                // Split the line into words
+                String[] words = line.split("\\s+");
+                // Wrap each word in single quotes and join with commas
+                String result = "'" + String.join("','", words) + "'";
+                // Write the result to the output file
+                writer.write(result);
+                writer.newLine();
             }
-
-            // Write processed lines to the output file
-            Files.write(Paths.get(outputFilePath), processedLines);
-
-            System.out.println("File processed successfully!");
+            
+            reader.close();
+            writer.close();
+            
+            System.out.println("File processing complete.");
         } catch (IOException e) {
             e.printStackTrace();
         }
-    }
-}
