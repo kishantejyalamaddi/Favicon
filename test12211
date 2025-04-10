@@ -1,15 +1,62 @@
-WebClient.create()
-    .method(request.getMethod())
-    .uri(finalTargetUri)
-    .headers(headers -> {
-        request.getHeaders().forEach((name, values) -> {
-            if (!excludedHeaders.contains(name) && !name.toLowerCase().startsWith("x-")) {
-                headers.addAll(name, values);
+public Mono<DataBuffer> extractRequestBody(ServerHttpRequest request) {
+    if (request.getMethod() == HttpMethod.GET || request.getMethod() == HttpMethod.DELETE) {
+        // For GET and DELETE requests, return an empty DataBuffer as there's no body
+        return Mono.just(new DefaultDataBufferFactory().wrap(new byte[0]));
+    }
+
+    return DataBufferUtils.join(request.getBody())
+            .flatMap(dataBuffer -> {
+                // Directly use the DataBuffer (no conversion to String)
+                DataBufferUtils.release(dataBuffer); // Release the DataBuffer back to the pool
+                return Mono.just(dataBuffer); // Return the DataBuffer to be forwarded
+            })
+            .switchIfEmpty(Mono.just(new DefaultDataBufferFactory().wrap(new byte[0]))); // Return empty DataBuffer if no body
+}
+
+
+
+
+return extractRequestBody(request)
+        .flatMap(requestBody -> {
+            logger.info("Request Body: {}", requestBody);
+
+            String contentType = request.getHeaders().getFirst(HttpHeaders.CONTENT_TYPE);
+            if (contentType == null) {
+                contentType = MediaType.APPLICATION_JSON_VALUE;
+            }
+
+            WebClient.RequestBodySpec requestSpec = webClient
+                    .method(request.getMethod())
+                    .uri(targetHostName + finalNewPath)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .header(HttpHeaders.CONTENT_TYPE, contentType);
+
+            // Copy user-added headers from ServerHttpRequest to WebClient.RequestBodySpec
+            request.getHeaders().forEach((headerName, headerValues) -> {
+                if (!excludedHeaders.contains(headerName) && !headerName.toLowerCase().startsWith("x-")) {
+                    logger.info("Key :- {}", headerName);
+                    headerValues.forEach(value -> requestSpec.header(headerName, value));
+                }
+            });
+
+            if (request.getMethod() == HttpMethod.POST || request.getMethod() == HttpMethod.PUT) {
+                return requestSpec
+                        .bodyValue(requestBody) // Now requestBody is DataBuffer, which is appropriate for file data
+                        .exchangeToMono(response -> response.toEntity(String.class)
+                                .flatMap(resEntity -> handleResponse(exchange, resEntity)));
+            } else {
+                return requestSpec
+                        .exchangeToMono(response -> response.toEntity(String.class)
+                                .flatMap(resEntity -> handleResponse(exchange, resEntity)));
             }
         });
-        headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + token);
-    })
-    .body(BodyInserters.fromPublisher(request.getBody(), DataBuffer.class))
-    .retrieve()
-    .bodyToMono(String.class)
-    .flatMap(response -> handleResponse(exchange, response));
+
+
+
+
+if (contentType.contains("multipart/form-data")) {
+    // Handle multipart data (for file uploads)
+    return requestSpec.body(BodyInserters.fromMultipartData(requestBody))
+            .exchangeToMono(response -> response.toEntity(String.class)
+                    .flatMap(resEntity -> handleResponse(exchange, resEntity)));
+}
