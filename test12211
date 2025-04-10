@@ -1,42 +1,28 @@
-public Mono<DataBuffer> extractRequestBody(ServerHttpRequest request) {
+public Mono<Object> extractRequestBody(ServerHttpRequest request) {
     if (request.getMethod() == HttpMethod.GET || request.getMethod() == HttpMethod.DELETE) {
-        return Mono.just(new DefaultDataBufferFactory().wrap(new byte[0]));
+        // For GET and DELETE requests, return an empty string or empty DataBuffer
+        return Mono.just("");
     }
 
-    return DataBufferUtils.join(request.getBody())
-            .flatMap(dataBuffer -> {
-                return Mono.just(dataBuffer);
-            })
-            .switchIfEmpty(Mono.just(new DefaultDataBufferFactory().wrap(new byte[0])));
+    String contentType = request.getHeaders().getFirst(HttpHeaders.CONTENT_TYPE);
+    if (contentType != null && contentType.equals(MediaType.APPLICATION_JSON_VALUE)) {
+        // Handle JSON request body (convert to String)
+        return DataBufferUtils.join(request.getBody())
+                .flatMap(dataBuffer -> {
+                    byte[] requestBodyBytes = new byte[dataBuffer.readableByteCount()];
+                    dataBuffer.read(requestBodyBytes);
+                    DataBufferUtils.release(dataBuffer); // Release the DataBuffer
+                    // Convert bytes to String (for JSON)
+                    String requestBody = new String(requestBodyBytes, StandardCharsets.UTF_8);
+                    return Mono.just(requestBody);
+                })
+                .switchIfEmpty(Mono.just("")); // Return empty string if no body
+    } else {
+        // Handle other content types (e.g., file uploads)
+        return DataBufferUtils.join(request.getBody())
+                .flatMap(dataBuffer -> {
+                    return Mono.just(dataBuffer); // Return DataBuffer for binary data (e.g., files)
+                })
+                .switchIfEmpty(Mono.just(new DefaultDataBufferFactory().wrap(new byte[0]))); // Return empty DataBuffer if no body
+    }
 }
-
-return extractRequestBody(request)
-        .flatMap(requestBody -> {
-            String contentType = request.getHeaders().getFirst(HttpHeaders.CONTENT_TYPE);
-            if (contentType == null) {
-                contentType = MediaType.APPLICATION_JSON_VALUE;
-            }
-
-            WebClient.RequestBodySpec requestSpec = webClient
-                    .method(request.getMethod())
-                    .uri(targetHostName + finalNewPath)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                    .header(HttpHeaders.CONTENT_TYPE, contentType);
-
-            request.getHeaders().forEach((headerName, headerValues) -> {
-                if (!excludedHeaders.contains(headerName) && !headerName.toLowerCase().startsWith("x-")) {
-                    headerValues.forEach(value -> requestSpec.header(headerName, value));
-                }
-            });
-
-            if (request.getMethod() == HttpMethod.POST || request.getMethod() == HttpMethod.PUT) {
-                return requestSpec
-                        .bodyValue(requestBody)
-                        .exchangeToMono(response -> response.toEntity(String.class)
-                                .flatMap(resEntity -> handleResponse(exchange, resEntity)));
-            } else {
-                return requestSpec
-                        .exchangeToMono(response -> response.toEntity(String.class)
-                                .flatMap(resEntity -> handleResponse(exchange, resEntity)));
-            }
-        });
