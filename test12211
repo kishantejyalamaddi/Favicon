@@ -1,25 +1,15 @@
-                        URI finalTargetUri;
-                            try {
-                                finalTargetUri = new URI(targetHostName + newPath);
-                            } catch (URISyntaxException e) {
-                                return onError(exchange, "Invalid target URI", HttpStatus.BAD_GATEWAY);
-                            }
-
-                            // Build the new request using ClientRequest to safely preserve multipart/form-data
-                            ClientRequest clientRequest = ClientRequest
-                                    .create(request.getMethod(), finalTargetUri)
-                                    .headers(headers -> {
-                                        request.getHeaders().forEach((name, values) -> {
-                                            if (!excludedHeaders.contains(name) && !name.toLowerCase().startsWith("x-")) {
-                                                headers.addAll(name, values);
-                                            }
-                                        });
-                                        headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + token);
-                                    })
-                                    .body((outputMessage, context) -> outputMessage.writeWith(request.getBody()))
-                                    .build();
-
-                            return webClient.exchange(clientRequest)
-                                    .flatMap(clientResponse -> clientResponse.toEntity(String.class)
-                                            .flatMap(resEntity -> handleResponse(exchange, resEntity)));
-                        })
+WebClient.create()
+    .method(request.getMethod())
+    .uri(finalTargetUri)
+    .headers(headers -> {
+        request.getHeaders().forEach((name, values) -> {
+            if (!excludedHeaders.contains(name) && !name.toLowerCase().startsWith("x-")) {
+                headers.addAll(name, values);
+            }
+        });
+        headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+    })
+    .body(BodyInserters.fromPublisher(request.getBody(), DataBuffer.class))
+    .retrieve()
+    .bodyToMono(String.class)
+    .flatMap(response -> handleResponse(exchange, response));
