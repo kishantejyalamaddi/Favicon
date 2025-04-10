@@ -1,29 +1,25 @@
-String contentType = request.getHeaders().getFirst(HttpHeaders.CONTENT_TYPE);
-if (contentType == null) {
-    contentType = MediaType.APPLICATION_JSON_VALUE;
-}
+                        URI finalTargetUri;
+                            try {
+                                finalTargetUri = new URI(targetHostName + newPath);
+                            } catch (URISyntaxException e) {
+                                return onError(exchange, "Invalid target URI", HttpStatus.BAD_GATEWAY);
+                            }
 
-WebClient.RequestBodySpec requestSpec = webClient
-        .method(request.getMethod())
-        .uri(targetHostName + finalNewPath)
-        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-        .header(HttpHeaders.CONTENT_TYPE, contentType);
+                            // Build the new request using ClientRequest to safely preserve multipart/form-data
+                            ClientRequest clientRequest = ClientRequest
+                                    .create(request.getMethod(), finalTargetUri)
+                                    .headers(headers -> {
+                                        request.getHeaders().forEach((name, values) -> {
+                                            if (!excludedHeaders.contains(name) && !name.toLowerCase().startsWith("x-")) {
+                                                headers.addAll(name, values);
+                                            }
+                                        });
+                                        headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+                                    })
+                                    .body((outputMessage, context) -> outputMessage.writeWith(request.getBody()))
+                                    .build();
 
-// Copy user-added headers from ServerHttpRequest to WebClient.RequestBodySpec
-request.getHeaders().forEach((headerName, headerValues) -> {
-    if (!excludedHeaders.contains(headerName) && !headerName.toLowerCase().startsWith("x-")) {
-        logger.info("Header to forward: {}", headerName);
-        headerValues.forEach(value -> requestSpec.header(headerName, value));
-    }
-});
-
-if (request.getMethod() == HttpMethod.POST || request.getMethod() == HttpMethod.PUT) {
-    return requestSpec
-            .body(BodyInserters.fromDataBuffers(request.getBody()))
-            .exchangeToMono(response -> response.toEntity(String.class)
-                    .flatMap(resEntity -> handleResponse(exchange, resEntity)));
-} else {
-    return requestSpec
-            .exchangeToMono(response -> response.toEntity(String.class)
-                    .flatMap(resEntity -> handleResponse(exchange, resEntity)));
-}
+                            return webClient.exchange(clientRequest)
+                                    .flatMap(clientResponse -> clientResponse.toEntity(String.class)
+                                            .flatMap(resEntity -> handleResponse(exchange, resEntity)));
+                        })
