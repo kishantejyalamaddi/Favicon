@@ -1,0 +1,90 @@
+import sys
+import html
+import csv
+
+def detect_delimiter(filepath):
+    """Detects delimiter automatically (supports |, ,, ;, tab, etc.)"""
+    with open(filepath, 'r', encoding='utf-8') as f:
+        sample = f.readline()
+        try:
+            dialect = csv.Sniffer().sniff(sample)
+            return dialect.delimiter
+        except Exception:
+            return '|'  # default to pipe
+
+
+def compare_fields(line1, line2, delimiter):
+    """Compare individual fields and highlight differences."""
+    fields1 = line1.strip().split(delimiter)
+    fields2 = line2.strip().split(delimiter)
+
+    max_len = max(len(fields1), len(fields2))
+    html_line1, html_line2 = [], []
+
+    for i in range(max_len):
+        f1 = fields1[i] if i < len(fields1) else ''
+        f2 = fields2[i] if i < len(fields2) else ''
+
+        f1_html = html.escape(f1) if f1 else '&nbsp;'
+        f2_html = html.escape(f2) if f2 else '&nbsp;'
+
+        if f1 == f2:
+            html_line1.append(f"<span class='match'>{f1_html}</span>")
+            html_line2.append(f"<span class='match'>{f2_html}</span>")
+        else:
+            html_line1.append(f"<span class='diff'>{f1_html}</span>")
+            html_line2.append(f"<span class='diff'>{f2_html}</span>")
+
+    return delimiter.join(html_line1), delimiter.join(html_line2)
+
+
+def compare_files(file1_path, file2_path, output_html_path, delimiter=None):
+    """Compare two files and generate an HTML report."""
+    if delimiter is None:
+        delimiter = detect_delimiter(file1_path)
+
+    with open(file1_path, 'r', encoding='utf-8') as f1, open(file2_path, 'r', encoding='utf-8') as f2:
+        lines1 = f1.readlines()
+        lines2 = f2.readlines()
+
+    html_lines = [
+        "<html><head><style>",
+        "body {font-family: monospace; white-space: pre-wrap;}",
+        "table {border-collapse: collapse; width: 100%;}",
+        "td {vertical-align: top; border: 1px solid #ccc; padding:4px;}",
+        ".match {background-color: #d4edda;}",  # green for matching
+        ".diff {background-color: #fff3cd;}",   # yellow for different fields
+        "h2 {font-family: Arial;}",
+        "</style></head><body>",
+        f"<h2>File Comparison Report (Delimiter: '{delimiter}')</h2>",
+        "<table><tr><th>File 1</th><th>File 2</th></tr>"
+    ]
+
+    max_len = max(len(lines1), len(lines2))
+    for i in range(max_len):
+        line1 = lines1[i].rstrip('\n') if i < len(lines1) else ''
+        line2 = lines2[i].rstrip('\n') if i < len(lines2) else ''
+
+        html_line1, html_line2 = compare_fields(line1, line2, delimiter)
+
+        html_lines.append(f"<tr><td>{html_line1}</td><td>{html_line2}</td></tr>")
+
+    html_lines.append("</table></body></html>")
+
+    with open(output_html_path, 'w', encoding='utf-8') as out:
+        out.write('\n'.join(html_lines))
+
+    print(f"✅ Comparison complete. HTML report generated at: {output_html_path}")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 4:
+        print("Usage: python file_compare_html.py <file1> <file2> <output.html> [delimiter]")
+        sys.exit(1)
+
+    file1 = sys.argv[1]
+    file2 = sys.argv[2]
+    output = sys.argv[3]
+    delimiter = sys.argv[4] if len(sys.argv) == 5 else None
+
+    compare_files(file1, file2, output, delimiter)
